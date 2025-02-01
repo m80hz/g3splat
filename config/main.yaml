@@ -4,7 +4,7 @@ defaults:
   - loss: [mse]
 
 wandb:
-  project: noposplat
+  project: gen2dgs
   entity: scene-representation-group
   name: placeholder
   mode: disabled
