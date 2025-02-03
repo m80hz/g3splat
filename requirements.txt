@@ -14,7 +14,8 @@ colorspacious
 matplotlib
 moviepy
 imageio
-git+https://github.com/rmurai0610/diff-gaussian-rasterization-w-pose.git
+# git+https://github.com/rmurai0610/diff-gaussian-rasterization-w-pose.git
+git+https://github.com/hbb1/diff-surfel-rasterization.git
 timm
 dacite
 lpips

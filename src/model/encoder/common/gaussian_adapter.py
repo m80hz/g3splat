@@ -16,7 +16,8 @@ from .gaussians import build_covariance
 class Gaussians:
     means: Float[Tensor, "*batch 3"]
     covariances: Float[Tensor, "*batch 3 3"]
-    scales: Float[Tensor, "*batch 3"]
+    # scales: Float[Tensor, "*batch 3"]
+    scales: Float[Tensor, "*batch 2"]
     rotations: Float[Tensor, "*batch 4"]
     harmonics: Float[Tensor, "*batch 3 _"]
     opacities: Float[Tensor, " *batch"]
@@ -47,6 +48,7 @@ class GaussianAdapter(nn.Module):
         for degree in range(1, self.cfg.sh_degree + 1):
             self.sh_mask[degree**2 : (degree + 1) ** 2] = 0.1 * 0.25**degree
 
+    #TODO: modify the 3d scales to 2d scales
     def forward(
         self,
         extrinsics: Float[Tensor, "*#batch 4 4"],
@@ -130,24 +132,36 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         intrinsics: Optional[Float[Tensor, "*#batch 3 3"]] = None,
         coordinates: Optional[Float[Tensor, "*#batch 2"]] = None,
     ) -> Gaussians:
-        scales, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
-
-        scales = 0.001 * F.softplus(scales)
-        scales = scales.clamp_max(0.3)
+        raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
+        
+        # scales = 0.001 * F.softplus(raw_scales_2d)
+        # scales = scales.clamp_max(0.3)
+        
+        scales_2d = torch.exp(raw_scales_2d)
+        # the third element is fixed (corresponding to the normal direction)
+        scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
 
         # Normalize the quaternion features to yield a valid quaternion.
         rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+        # rotations = torch.nn.functional.normalize(rotations)
 
         sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
 
-        covariances = build_covariance(scales, rotations)
+        covariances = build_covariance(scaling_extended, rotations)
 
         return Gaussians(
             means=means,
             covariances=covariances,
             harmonics=sh,
             opacities=opacities,
-            scales=scales,
-            rotations=rotations.broadcast_to((*scales.shape[:-1], 4)),
+            scales=scales_2d,
+            rotations=rotations.broadcast_to((*scales_2d.shape[:-1], 4)),
         )
+        
+    @property
+    def d_in(self) -> int:
+        # 2 for scale + 4 for rotation + 3*d_sh for harmonics
+        return 6 + 3 * self.d_sh
+
+

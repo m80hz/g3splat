@@ -2,10 +2,12 @@ from math import isqrt
 from typing import Literal
 
 import torch
-from diff_gaussian_rasterization import (
-    GaussianRasterizationSettings,
-    GaussianRasterizer,
-)
+# from diff_gaussian_rasterization import (
+#     GaussianRasterizationSettings,
+#     GaussianRasterizer,
+# )
+from diff_surfel_rasterization import (GaussianRasterizationSettings, GaussianRasterizer)
+
 from einops import einsum, rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor
@@ -51,9 +53,11 @@ def render_cuda(
     image_shape: tuple[int, int],
     background_color: Float[Tensor, "batch 3"],
     gaussian_means: Float[Tensor, "batch gaussian 3"],
-    gaussian_covariances: Float[Tensor, "batch gaussian 3 3"],
+    gaussian_scales: Float[Tensor, "batch gaussian 2"],
+    gaussian_rotations: Float[Tensor, "batch gaussian 4"],
     gaussian_sh_coefficients: Float[Tensor, "batch gaussian 3 d_sh"],
     gaussian_opacities: Float[Tensor, "batch gaussian"],
+    gaussian_covariances: Float[Tensor, "batch gaussian 3 3"] | None = None,
     scale_invariant: bool = True,
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
@@ -66,7 +70,8 @@ def render_cuda(
         scale = 1 / near
         extrinsics = extrinsics.clone()
         extrinsics[..., :3, 3] = extrinsics[..., :3, 3] * scale[:, None]
-        gaussian_covariances = gaussian_covariances * (scale[:, None, None, None] ** 2)
+        gaussian_scales = gaussian_scales * scale[:, None, None]
+        # gaussian_covariances = gaussian_covariances * (scale[:, None, None, None] ** 2)
         gaussian_means = gaussian_means * scale[:, None, None]
         near = near * scale
         far = far * scale
@@ -107,7 +112,7 @@ def render_cuda(
             scale_modifier=1.0,
             viewmatrix=view_matrix[i],
             projmatrix=full_projection[i],
-            projmatrix_raw=projection_matrix[i],
+            # projmatrix_raw=projection_matrix[i],
             sh_degree=degree,
             campos=extrinsics[i, :3, 3],
             prefiltered=False,  # This matches the original usage.
@@ -115,21 +120,61 @@ def render_cuda(
         )
         rasterizer = GaussianRasterizer(settings)
 
-        row, col = torch.triu_indices(3, 3)
+        # used for covariance
+        # row, col = torch.triu_indices(3, 3)
 
-        image, radii, depth, opacity, n_touched = rasterizer(
+        # image, radii, depth, opacity, n_touched = rasterizer(
+        image, radii, allmap = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,
             colors_precomp=None if use_sh else shs[i, :, 0, :],
             opacities=gaussian_opacities[i, ..., None],
-            cov3D_precomp=gaussian_covariances[i, :, row, col],
-            theta=cam_rot_delta[i] if cam_rot_delta is not None else None,
-            rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
+            scales=gaussian_scales[i],
+            rotations=gaussian_rotations[i],
+            # precomputed 3d covariance passed as None
+            cov3D_precomp=None
+            # cov3D_precomp=gaussian_covariances[i, :, row, col],
+            # theta=cam_rot_delta[i] if cam_rot_delta is not None else None,
+            # rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
         )
         all_images.append(image)
         all_radii.append(radii)
-        all_depths.append(depth.squeeze(0))
+        
+        
+        # additional regularizations
+        render_alpha = allmap[1:2]
+
+        # # get normal map
+        # # transform normal from view space to world space
+        # render_normal = allmap[2:5]
+        # render_normal = (render_normal.permute(1,2,0) @ (viewpoint_camera.world_view_transform[:3,:3].T)).permute(2,0,1)
+        
+        # # get median depth map
+        # render_depth_median = allmap[5:6]
+        # render_depth_median = torch.nan_to_num(render_depth_median, 0, 0)
+
+        # get expected depth map
+        render_depth_expected = allmap[0:1]
+        render_depth_expected = (render_depth_expected / render_alpha)
+        render_depth_expected = torch.nan_to_num(render_depth_expected, 0, 0)
+        
+        # # get depth distortion map
+        # render_dist = allmap[6:7]
+
+        # # psedo surface attributes
+        # # surf depth is either median or expected by setting depth_ratio to 1 or 0
+        # # for bounded scene, use median depth, i.e., depth_ratio = 1; 
+        # # for unbounded scene, use expected depth, i.e., depth_ration = 0, to reduce disk anliasing.
+        # surf_depth = render_depth_expected * (1-pipe.depth_ratio) + (pipe.depth_ratio) * render_depth_median
+        
+        # # assume the depth points form the 'surface' and generate psudo surface normal for regularizations.
+        # surf_normal = depth_to_normal(viewpoint_camera, surf_depth)
+        # surf_normal = surf_normal.permute(2,0,1)
+        # # remember to multiply with accum_alpha since render_normal is unnormalized.
+        # surf_normal = surf_normal * (render_alpha).detach()
+       
+        all_depths.append(render_depth_expected.squeeze(0))
     return torch.stack(all_images), torch.stack(all_depths)
 
 
@@ -142,9 +187,11 @@ def render_cuda_orthographic(
     image_shape: tuple[int, int],
     background_color: Float[Tensor, "batch 3"],
     gaussian_means: Float[Tensor, "batch gaussian 3"],
-    gaussian_covariances: Float[Tensor, "batch gaussian 3 3"],
+    gaussian_scales: Float[Tensor, "batch gaussian 2"],
+    gaussian_rotations: Float[Tensor, "batch gaussian 4"],
     gaussian_sh_coefficients: Float[Tensor, "batch gaussian 3 d_sh"],
     gaussian_opacities: Float[Tensor, "batch gaussian"],
+    gaussian_covariances: Float[Tensor, "batch gaussian 3 3"] | None = None,
     fov_degrees: float = 0.1,
     use_sh: bool = True,
     dump: dict | None = None,
@@ -204,7 +251,7 @@ def render_cuda_orthographic(
             scale_modifier=1.0,
             viewmatrix=view_matrix[i],
             projmatrix=full_projection[i],
-            projmatrix_raw=projection_matrix[i],
+            # projmatrix_raw=projection_matrix[i],
             sh_degree=degree,
             campos=extrinsics[i, :3, 3],
             prefiltered=False,  # This matches the original usage.
@@ -214,13 +261,20 @@ def render_cuda_orthographic(
 
         row, col = torch.triu_indices(3, 3)
 
-        image, radii, depth, opacity, n_touched = rasterizer(
+        # image, radii, depth, opacity, n_touched = rasterizer(
+        image, radii, allmap = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,
             colors_precomp=None if use_sh else shs[i, :, 0, :],
             opacities=gaussian_opacities[i, ..., None],
-            cov3D_precomp=gaussian_covariances[i, :, row, col],
+            scales=gaussian_scales[i],
+            rotations=gaussian_rotations[i],
+            # precomputed 3d covariance passed as None
+            cov3D_precomp=None
+            # cov3D_precomp=gaussian_covariances[i, :, row, col],
+            # theta=cam_rot_delta[i] if cam_rot_delta is not None else None,
+            # rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
         )
         all_images.append(image)
         all_radii.append(radii)

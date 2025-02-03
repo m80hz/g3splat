@@ -74,9 +74,11 @@ def render_projections(
             (resolution, resolution),
             torch.zeros((b, 3), dtype=torch.float32, device=device),
             gaussians.means,
-            gaussians.covariances,
+            gaussians.scales,
+            gaussians.rotations,
             gaussians.harmonics,
             gaussians.opacities,
+            gaussian_covariances=gaussians.covariances,
             fov_degrees=10.0,
         )
         if draw_label:
