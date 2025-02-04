@@ -48,7 +48,6 @@ class GaussianAdapter(nn.Module):
         for degree in range(1, self.cfg.sh_degree + 1):
             self.sh_mask[degree**2 : (degree + 1) ** 2] = 0.1 * 0.25**degree
 
-    #TODO: modify the 3d scales to 2d scales
     def forward(
         self,
         extrinsics: Float[Tensor, "*#batch 4 4"],
@@ -61,25 +60,39 @@ class GaussianAdapter(nn.Module):
         eps: float = 1e-8,
     ) -> Gaussians:
         device = extrinsics.device
-        scales, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
+        raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
 
         # Map scale features to valid scale range.
         scale_min = self.cfg.gaussian_scale_min
         scale_max = self.cfg.gaussian_scale_max
-        scales = scale_min + (scale_max - scale_min) * scales.sigmoid()
+        # scales = scale_min + (scale_max - scale_min) * scales.sigmoid()
+        scales_2d = scale_min + (scale_max - scale_min) * raw_scales_2d.sigmoid()
+
+        # Normalize the quaternion features to yield a valid quaternion.
+        # rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+        rotations = torch.nn.functional.normalize(rotations)
+                
         h, w = image_shape
         pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=device)
         multiplier = self.get_scale_multiplier(intrinsics, pixel_size)
-        scales = scales * depths[..., None] * multiplier[..., None]
+        # Extract quaternion components
+        x, y, z, w = rotations.unbind(dim=-1)
+        # Compute the normal direction's Z-component after rotation
+        normal_z = 1 - 2 * (x**2 + y**2)
+        # Compute depth scaling factor (ensuring no division by zero)
+        depth_scale_factor = 1 / (torch.abs(normal_z) + eps)
+        # Apply depth scaling only to the X and Y dimensions (not Z)
+        depth_scaling = torch.stack([depth_scale_factor, depth_scale_factor], dim=-1)
+        # Apply scaling corrections
+        scales_2d = scales_2d * depths[..., None] * multiplier[..., None] * depth_scaling
 
-        # Normalize the quaternion features to yield a valid quaternion.
-        rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+        scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
 
         sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
 
         # Create world-space covariance matrices.
-        covariances = build_covariance(scales, rotations)
+        covariances = build_covariance(scaling_extended, rotations)
         c2w_rotations = extrinsics[..., :3, :3]
         covariances = c2w_rotations @ covariances @ c2w_rotations.transpose(-1, -2)
 
@@ -95,8 +108,8 @@ class GaussianAdapter(nn.Module):
             opacities=opacities,
             # Note: These aren't yet rotated into world space, but they're only used for
             # exporting Gaussians to ply files. This needs to be fixed...
-            scales=scales,
-            rotations=rotations.broadcast_to((*scales.shape[:-1], 4)),
+            scales=scales_2d,
+            rotations=rotations.broadcast_to((*scales_2d.shape[:-1], 4)),
         )
 
     def get_scale_multiplier(
@@ -142,8 +155,8 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
 
         # Normalize the quaternion features to yield a valid quaternion.
-        rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
-        # rotations = torch.nn.functional.normalize(rotations)
+        # rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+        rotations = torch.nn.functional.normalize(rotations)
 
         sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
