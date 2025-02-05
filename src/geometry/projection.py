@@ -103,6 +103,10 @@ def get_world_rays(
         intrinsics,
     )
     directions = directions / directions.norm(dim=-1, keepdim=True)
+    # NOTE: *legacy issue* this code is borrowed from pixelsplat's codebase (is this correct? depth or distance along the ray??)
+    # switch to the other convention (Z depth), normalize by the Z coordinate instead of by ray length.
+    # directions = directions / directions[..., -1:]
+    
 
     # Transform ray directions to world coordinates.
     directions = homogenize_vectors(directions)
