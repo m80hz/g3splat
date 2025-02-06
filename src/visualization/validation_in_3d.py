@@ -38,6 +38,10 @@ def render_projections(
     scene_minima, scene_maxima = compute_equal_aabb_with_margin(
         minima, maxima, margin=margin
     )
+    
+    # added to avoid degenerate near/far values (for flat scenes)
+    epsilon = 1e-6
+    scene_maxima = torch.max(scene_maxima, scene_minima + epsilon)
 
     projections = []
     for look_axis in range(3):

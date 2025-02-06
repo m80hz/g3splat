@@ -12,7 +12,7 @@ from einops import einsum, rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor
 
-from ...geometry.projection import get_fov, homogenize_points
+from ...geometry.projection import get_fov, homogenize_points, depth_to_normal
 
 
 def get_projection_matrix(
@@ -57,12 +57,15 @@ def render_cuda(
     gaussian_rotations: Float[Tensor, "batch gaussian 4"],
     gaussian_sh_coefficients: Float[Tensor, "batch gaussian 3 d_sh"],
     gaussian_opacities: Float[Tensor, "batch gaussian"],
+    depth_ratio: int,
     gaussian_covariances: Float[Tensor, "batch gaussian 3 3"] | None = None,
     scale_invariant: bool = True,
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
     cam_trans_delta: Float[Tensor, "batch 3"] | None = None,
-) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"]]:
+) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"], Float[Tensor, "batch 3 height width"],
+           Float[Tensor, "batch height width"], Float[Tensor, "batch height width"], Float[Tensor, "batch 3 height width"]]:
+
     assert use_sh or gaussian_sh_coefficients.shape[-1] == 1
 
     # Make sure everything is in a range where numerical issues don't appear.
@@ -94,7 +97,12 @@ def render_cuda(
 
     all_images = []
     all_radii = []
-    all_depths = []
+    all_rend_alphas = []
+    all_rend_normals = []
+    all_rend_dists = []
+    all_surf_depths = []
+    all_surf_normals = []
+    
     for i in range(b):
         # Set up a tensor for the gradients of the screen-space means.
         mean_gradients = torch.zeros_like(gaussian_means[i], requires_grad=True)
@@ -140,42 +148,44 @@ def render_cuda(
         )
         all_images.append(image)
         all_radii.append(radii)
-        
-        
+                
         # additional regularizations
         render_alpha = allmap[1:2]
+        all_rend_alphas.append(render_alpha.squeeze(0))
 
-        # # get normal map
-        # # transform normal from view space to world space
-        # render_normal = allmap[2:5]
-        # render_normal = (render_normal.permute(1,2,0) @ (viewpoint_camera.world_view_transform[:3,:3].T)).permute(2,0,1)
+        # get normal map
+        # transform normal from view space to world space
+        render_normal = allmap[2:5]
+        render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
+        all_rend_normals.append(render_normal)
         
-        # # get median depth map
-        # render_depth_median = allmap[5:6]
-        # render_depth_median = torch.nan_to_num(render_depth_median, 0, 0)
+        # get median depth map
+        render_depth_median = allmap[5:6]
+        render_depth_median = torch.nan_to_num(render_depth_median, 0, 0)
 
         # get expected depth map
         render_depth_expected = allmap[0:1]
         render_depth_expected = (render_depth_expected / render_alpha)
         render_depth_expected = torch.nan_to_num(render_depth_expected, 0, 0)
         
-        # # get depth distortion map
-        # render_dist = allmap[6:7]
+        # get depth distortion map
+        render_dist = allmap[6:7]
+        all_rend_dists.append(render_dist.squeeze(0))
 
-        # # psedo surface attributes
-        # # surf depth is either median or expected by setting depth_ratio to 1 or 0
-        # # for bounded scene, use median depth, i.e., depth_ratio = 1; 
-        # # for unbounded scene, use expected depth, i.e., depth_ration = 0, to reduce disk anliasing.
-        # surf_depth = render_depth_expected * (1-pipe.depth_ratio) + (pipe.depth_ratio) * render_depth_median
+        # pseudo surface attributes
+        # surf depth is either median or expected by setting depth_ratio to 1 or 0
+        surf_depth = render_depth_expected * (1 - depth_ratio) + depth_ratio * render_depth_median
+        all_surf_depths.append(surf_depth.squeeze(0))
         
-        # # assume the depth points form the 'surface' and generate psudo surface normal for regularizations.
-        # surf_normal = depth_to_normal(viewpoint_camera, surf_depth)
-        # surf_normal = surf_normal.permute(2,0,1)
-        # # remember to multiply with accum_alpha since render_normal is unnormalized.
-        # surf_normal = surf_normal * (render_alpha).detach()
-       
-        all_depths.append(render_depth_expected.squeeze(0))
-    return torch.stack(all_images), torch.stack(all_depths)
+        # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
+        surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
+        surf_normal = surf_normal.permute(2,0,1)
+        # remember to multiply with accum_alpha since render_normal is unnormalized.
+        surf_normal = surf_normal * (render_alpha).detach()
+        all_surf_normals.append(surf_normal)
+
+    return torch.stack(all_images), torch.stack(all_rend_alphas), torch.stack(all_rend_normals), \
+        torch.stack(all_rend_dists), torch.stack(all_surf_depths), torch.stack(all_surf_normals)
 
 
 def render_cuda_orthographic(

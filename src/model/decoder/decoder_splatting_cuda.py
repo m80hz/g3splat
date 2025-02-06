@@ -17,6 +17,7 @@ class DecoderSplattingCUDACfg:
     name: Literal["splatting_cuda"]
     background_color: list[float]
     make_scale_invariant: bool
+    depth_ratio: int
 
 
 class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
@@ -28,6 +29,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
     ) -> None:
         super().__init__(cfg)
         self.make_scale_invariant = cfg.make_scale_invariant
+        self.depth_ratio = cfg.depth_ratio
         self.register_buffer(
             "background_color",
             torch.tensor(cfg.background_color, dtype=torch.float32),
@@ -47,7 +49,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         cam_trans_delta: Float[Tensor, "batch view 3"] | None = None,
     ) -> DecoderOutput:
         b, v, _, _ = extrinsics.shape
-        color, depth = render_cuda(
+        color, alpha, rend_normal, dist, depth, surf_normal = render_cuda(
             rearrange(extrinsics, "b v i j -> (b v) i j"),
             rearrange(intrinsics, "b v i j -> (b v) i j"),
             rearrange(near, "b v -> (b v)"),
@@ -59,6 +61,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
             repeat(gaussians.rotations, "b g xyzw -> (b v) g xyzw", v=v),
             repeat(gaussians.harmonics, "b g c d_sh -> (b v) g c d_sh", v=v),
             repeat(gaussians.opacities, "b g -> (b v) g", v=v),
+            depth_ratio=self.depth_ratio,
             # repeat(gaussians.covariances, "b g i j -> (b v) g i j", v=v),
             gaussian_covariances=None,
             scale_invariant=self.make_scale_invariant,
@@ -66,6 +69,10 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
             cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
         )
         color = rearrange(color, "(b v) c h w -> b v c h w", b=b, v=v)
-
+        alpha = rearrange(alpha, "(b v) h w -> b v h w", b=b, v=v)
+        rend_normal = rearrange(rend_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v)
+        dist = rearrange(dist, "(b v) h w -> b v h w", b=b, v=v)
         depth = rearrange(depth, "(b v) h w -> b v h w", b=b, v=v)
-        return DecoderOutput(color, depth)
+        surf_normal = rearrange(surf_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v)
+        
+        return DecoderOutput(color, alpha, rend_normal, dist, depth, surf_normal)
