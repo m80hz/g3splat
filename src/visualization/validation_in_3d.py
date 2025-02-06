@@ -40,8 +40,9 @@ def render_projections(
     )
     
     # added to avoid degenerate near/far values (for flat scenes)
-    epsilon = 1e-6
-    scene_maxima = torch.max(scene_maxima, scene_minima + epsilon)
+    scene_extent = scene_maxima - scene_minima
+    min_extent = scene_extent.mean(dim=-1, keepdim=True) * 1e-3  # or another appropriate fraction
+    scene_maxima = torch.max(scene_maxima, scene_minima + min_extent)
 
     projections = []
     for look_axis in range(3):
