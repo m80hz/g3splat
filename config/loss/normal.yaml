@@ -1,5 +1,5 @@
 normal:
   lambda_normal: 0.05
   lambda_distortion: 0.0
-  apply_normal_after_step: 10000
+  apply_normal_after_step: 0
   apply_distortion_after_step: 0

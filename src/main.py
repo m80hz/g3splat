@@ -93,8 +93,7 @@ def train(cfg_dict: DictConfig):
 
     trainer = Trainer(
         max_epochs=-1,
-        # num_nodes=cfg.trainer.num_nodes,
-        num_nodes=1,
+        num_nodes=cfg.trainer.num_nodes,
         accelerator="gpu",
         logger=logger,
         # devices="auto",
