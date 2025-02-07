@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
 
+# Must be set before trainer or distributed init
+os.environ["NCCL_P2P_DISABLE"] = "1"
+
 import hydra
 import torch
 import wandb
@@ -96,14 +99,14 @@ def train(cfg_dict: DictConfig):
         num_nodes=cfg.trainer.num_nodes,
         accelerator="gpu",
         logger=logger,
-        # devices="auto",
-        devices=1,
-        # strategy=(
-        #     "ddp_find_unused_parameters_true"
-        #     if torch.cuda.device_count() > 1
-        #     else "auto"
-        # ),
-        strategy="auto",
+        devices="auto",
+        # devices=1,
+        strategy=(
+            "ddp_find_unused_parameters_true"
+            if torch.cuda.device_count() > 1
+            else "auto"
+        ),
+        # strategy="auto",
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         check_val_every_n_epoch=None,

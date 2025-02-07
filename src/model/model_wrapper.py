@@ -171,13 +171,13 @@ class ModelWrapper(LightningModule):
             rearrange(target_gt, "b v c h w -> (b v) c h w"),
             rearrange(output.color, "b v c h w -> (b v) c h w"),
         )
-        self.log("train/psnr_probabilistic", psnr_probabilistic.mean())
+        self.log("train/psnr_probabilistic", psnr_probabilistic.mean(), sync_dist=True)
 
         # Compute and log loss.
         total_loss = 0
         for loss_fn in self.losses:
             loss = loss_fn.forward(output, batch, gaussians, self.global_step)
-            self.log(f"loss/{loss_fn.name}", loss)
+            self.log(f"loss/{loss_fn.name}", loss, sync_dist=True)
             total_loss = total_loss + loss
 
         # distillation
@@ -191,7 +191,7 @@ class ModelWrapper(LightningModule):
             self.log("loss/distillation_loss", distillation_loss)
             total_loss = total_loss + distillation_loss
 
-        self.log("loss/total", total_loss)
+        self.log("loss/total", total_loss, sync_dist=True)
 
         if (
             self.global_rank == 0
