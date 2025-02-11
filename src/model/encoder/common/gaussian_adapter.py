@@ -147,16 +147,16 @@ class UnifiedGaussianAdapter(GaussianAdapter):
     ) -> Gaussians:
         raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
         
-        # scales = 0.001 * F.softplus(raw_scales_2d)
-        # scales = scales.clamp_max(0.3)
-        
-        scales_2d = torch.exp(raw_scales_2d)
+        scales_2d = 0.001 * F.softplus(raw_scales_2d)
+        scales_2d = scales_2d.clamp_max(0.3)
+        # scales_2d = torch.exp(raw_scales_2d)
+
         # the third element is fixed (corresponding to the normal direction)
         scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
 
         # Normalize the quaternion features to yield a valid quaternion.
-        # rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
-        rotations = torch.nn.functional.normalize(rotations)
+        rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+        # rotations = torch.nn.functional.normalize(rotations)
 
         sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
