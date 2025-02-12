@@ -68,12 +68,18 @@ class DatasetScannetPose(IterableDataset):
 
         # Collect data.
         self.data_root = cfg.roots[0]
-        pair_file = os.path.join(cfg.roots[0], "test.npz")
-        data_pairs = np.load(pair_file)
+        # following BA-Net's splits
+        pair_file = os.path.join(cfg.roots[0], "scannet_test_pairs.txt")
+        # Load the text file; each row is [scene_name, image1, image2]
+        data_pairs = np.loadtxt(pair_file, delimiter=" ", dtype=str)
+        
+        # save the pairs path from the text file
+        self.pairs = data_pairs  # Each row: [scene_name, image1, image2]
 
-        pairs, rel_pose = data_pairs["name"], data_pairs["rel_pose"]
-        self.pairs = pairs  # scene name, image_file1, image_file2
-        self.rel_pose = rel_pose
+        # shape of relative pose (3, 4): [R | t]
+        # dummy_rel_pose = np.concatenate((np.eye(3), np.zeros((3, 1))), axis=1)
+        self.rel_pose = None
+        
 
     def shuffle(self, lst: list) -> list:
         indices = torch.randperm(len(lst))
@@ -88,49 +94,46 @@ class DatasetScannetPose(IterableDataset):
                 for pair_index, pair in enumerate(self.pairs)
                 if pair_index % worker_info.num_workers == worker_info.id
             ]
-            self.rel_pose = [
-                pose
-                for pose_index, pose in enumerate(self.rel_pose)
-                if pose_index % worker_info.num_workers == worker_info.id
-            ]
+            if self.rel_pose is not None:
+                self.rel_pose = [
+                    pose
+                    for pose_index, pose in enumerate(self.rel_pose)
+                    if pose_index % worker_info.num_workers == worker_info.id
+                ]
 
-        for scene, rel_pose in zip(self.pairs, self.rel_pose):
+        for scene_row in self.pairs:
+            # scene_row is something like: ["scene0688_00", "000346", "000350"]
+            scene_name = scene_row[0]  # already complete scene name
+            # remove zero padding from file names
+            im_A_num = int(scene_row[1])
+            im_B_num = int(scene_row[2])
 
-            scene_name = f"scene0{scene[0]}_00"
-            im_A_path = os.path.join(
-                self.data_root,
-                "scans_test",
-                scene_name,
-                "color",
-                f"{scene[2]}.jpg",
-            )
-            im_B_path = os.path.join(
-                self.data_root,
-                "scans_test",
-                scene_name,
-                "color",
-                f"{scene[3]}.jpg",
-            )
+            # Build image file paths:
+            im_A_path = os.path.join(self.data_root, scene_name, "color", f"{im_A_num}.jpg")
+            im_B_path = os.path.join(self.data_root, scene_name, "color", f"{im_B_num}.jpg")
+
+            # Build the corresponding pose file paths
+            pose_A_path = os.path.join(self.data_root, scene_name, "pose", f"{im_A_num}.txt")
+            pose_B_path = os.path.join(self.data_root, scene_name, "pose", f"{im_B_num}.txt")
+
             context_images = [im_A_path, im_B_path]
-            context_images = self.convert_images(context_images)
+            context_images = self.convert_images(context_images)      # returns a tensor (2, 3, H, W)
+
+            # Load the pose files (each should contain a 4x4 matrix)
+            T_A = np.loadtxt(pose_A_path)  # camera-to-world transformation for image A
+            T_B = np.loadtxt(pose_B_path)  # camera-to-world transformation for image B
+
+            # Compute the relative pose from B to A is: T_rel = inv(T_A) @ T_B
+            T_rel = np.linalg.inv(T_A) @ T_B
 
             h, w = context_images.shape[-2:]
 
             K = np.stack(
                 [
                     np.array([float(i) for i in r.split()])
-                    for r in open(
-                    osp.join(
-                        self.data_root,
-                        "scans_test",
-                        scene_name,
-                        "intrinsic",
-                        "intrinsic_color.txt",
-                    ),
-                    "r",
-                )
-                .read()
-                .split("\n")
+                    for r in open(osp.join(self.data_root, scene_name, "intrinsic", "intrinsic_color.txt"), "r")
+                    .read()
+                    .split("\n")
                     if r
                 ]
             )
@@ -188,13 +191,18 @@ class DatasetScannetPose(IterableDataset):
             h, w = context_images.shape[-2:]
             target_images = context_images.clone()
 
-            pose1 = torch.eye(4)
-            pose2 = torch.eye(4)
-            pose2[:3, :4] = torch.tensor(rel_pose.reshape(3, 4)).to(torch.float32)
-            pose2 = torch.inverse(pose2)
-            extrinsics = torch.stack((pose1, pose2), dim=0)
+            # Here, we set image A's frame as the world (i.e. extrinsics for A are identity).
+            extrinsic_A = torch.eye(4, dtype=torch.float32)
+            extrinsic_B = torch.tensor(T_rel, dtype=torch.float32)
+            extrinsics = torch.stack((extrinsic_A, extrinsic_B), dim=0)
 
-            # normolize K
+            # pose1 = torch.eye(4)
+            # pose2 = torch.eye(4)
+            # pose2[:3, :4] = torch.tensor(rel_pose.reshape(3, 4)).to(torch.float32)
+            # pose2 = torch.inverse(pose2)
+            # extrinsics = torch.stack((pose1, pose2), dim=0)
+
+            # normalize K
             K = K[:3, :3]
             K[0, :3] /= w
             K[1, :3] /= h

@@ -3,7 +3,7 @@ defaults:
   - view_sampler: bounded
 
 name: scannet_pose
-roots: [datasets/scannet_pose_test_1500]
+roots: [datasets/scannetv1_test]
 make_baseline_1: true
 augment: true
 
