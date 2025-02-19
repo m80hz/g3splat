@@ -69,10 +69,10 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
             cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
         )
         color = rearrange(color, "(b v) c h w -> b v c h w", b=b, v=v)
-        alpha = rearrange(alpha, "(b v) h w -> b v h w", b=b, v=v) if alpha else None
-        rend_normal = rearrange(rend_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v) if rend_normal else None
-        dist = rearrange(dist, "(b v) h w -> b v h w", b=b, v=v) if dist else None
-        depth = rearrange(depth, "(b v) h w -> b v h w", b=b, v=v) if depth else None
-        surf_normal = rearrange(surf_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v) if surf_normal else None
+        alpha = rearrange(alpha, "(b v) h w -> b v h w", b=b, v=v) if alpha is not None else None
+        rend_normal = rearrange(rend_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v) if rend_normal is not None else None
+        dist = rearrange(dist, "(b v) h w -> b v h w", b=b, v=v) if dist is not None else None
+        depth = rearrange(depth, "(b v) h w -> b v h w", b=b, v=v) if depth is not None else None
+        surf_normal = rearrange(surf_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v) if surf_normal is not None else None
         
         return DecoderOutput(color, alpha, rend_normal, dist, depth, surf_normal)
