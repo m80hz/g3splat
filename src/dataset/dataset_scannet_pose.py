@@ -51,8 +51,8 @@ class DatasetScannetPose(IterableDataset):
 
     to_tensor: tf.ToTensor
     chunks: list[Path]
-    near: float = 0.1
-    far: float = 100.0
+    near: float = 0.5
+    far: float = 10.0
 
     def __init__(
         self,
@@ -108,9 +108,13 @@ class DatasetScannetPose(IterableDataset):
             im_A_num = int(scene_row[1])
             im_B_num = int(scene_row[2])
 
-            # Build image file paths:
+            # Build image file paths
             im_A_path = os.path.join(self.data_root, scene_name, "color", f"{im_A_num}.jpg")
             im_B_path = os.path.join(self.data_root, scene_name, "color", f"{im_B_num}.jpg")
+
+            # Build the corresponding depth file paths
+            depth_A_path = os.path.join(self.data_root, scene_name, "depth", f"{im_A_num}.png")
+            depth_B_path = os.path.join(self.data_root, scene_name, "depth", f"{im_B_num}.png")
 
             # Build the corresponding pose file paths
             pose_A_path = os.path.join(self.data_root, scene_name, "pose", f"{im_A_num}.txt")
@@ -119,6 +123,9 @@ class DatasetScannetPose(IterableDataset):
             context_images = [im_A_path, im_B_path]
             context_images = self.convert_images(context_images)      # returns a tensor (2, 3, H, W)
 
+            context_depths = [depth_A_path, depth_B_path]
+            context_depths = self.convert_depths(context_depths)      # returns a tensor (2, 1, H, W)
+            
             # Load the pose files (each should contain a 4x4 matrix)
             T_A = np.loadtxt(pose_A_path)  # camera-to-world transformation for image A
             T_B = np.loadtxt(pose_B_path)  # camera-to-world transformation for image B
@@ -127,7 +134,6 @@ class DatasetScannetPose(IterableDataset):
             T_rel = np.linalg.inv(T_A) @ T_B
 
             h, w = context_images.shape[-2:]
-
             K = np.stack(
                 [
                     np.array([float(i) for i in r.split()])
@@ -138,7 +144,18 @@ class DatasetScannetPose(IterableDataset):
                 ]
             )
 
-            # crop the image ro make the principal point in the center of the image
+            h_depth, w_depth = context_depths.shape[-2:]
+            K_depth = np.stack(
+                [
+                    np.array([float(i) for i in r.split()])
+                    for r in open(osp.join(self.data_root, scene_name, "intrinsic", "intrinsic_depth.txt"), "r")
+                    .read()
+                    .split("\n")
+                    if r
+                ]
+            )
+
+            # crop the image to make the principal point in the center of the image
             def center_principal_point(image, cx, cy, h, w):
                 cx = round(cx)
                 cy = round(cy)
@@ -180,6 +197,44 @@ class DatasetScannetPose(IterableDataset):
                 new_cy = new_h // 2
 
                 return new_image, new_cx, new_cy
+            
+            def center_principal_point_depth(depth, cx, cy, h, w):
+                cx = round(cx)
+                cy = round(cy)
+
+                # Desired center coordinates for the new image.
+                center_x, center_y = w // 2, h // 2
+
+                # Calculate shifts to center the principal point.
+                shift_x = center_x - cx
+                shift_y = center_y - cy
+
+                # Calculate new dimensions.
+                new_w = max(w, w - 2 * shift_x)
+                new_h = max(h, h - 2 * shift_y)
+                new_w = round(new_w)
+                new_h = round(new_h)
+
+                # Create new depth image filled with zeros (invalid depth).
+                new_depth = torch.zeros((depth.shape[0], depth.shape[1], new_h, new_w), dtype=torch.float32)
+
+                # Compute padding and source region.
+                pad_left = max(0, -shift_x)
+                pad_top = max(0, -shift_y)
+                src_left = max(0, shift_x)
+                src_top = max(0, shift_y)
+                src_right = min(w, w + shift_x)
+                src_bottom = min(h, h + shift_y)
+
+                # Copy valid region from original depth to new image.
+                new_depth[:, :, pad_top:pad_top + (src_bottom - src_top),
+                        pad_left:pad_left + (src_right - src_left)] = depth[:, :, src_top:src_bottom, src_left:src_right]
+
+                # Update principal point to be at the center of the new image.
+                new_cx = new_w // 2
+                new_cy = new_h // 2
+
+                return new_depth, new_cx, new_cy
 
             # tgt_cx, tgt_cy = w // 2, h // 2
             context_images, tgt_cx, tgt_cy = center_principal_point(
@@ -191,6 +246,17 @@ class DatasetScannetPose(IterableDataset):
             h, w = context_images.shape[-2:]
             target_images = context_images.clone()
 
+            context_depths, tgt_cx_depth, tgt_cy_depth = center_principal_point_depth(
+                context_depths, K_depth[0, 2], K_depth[1, 2], h_depth, w_depth
+            )
+            K_depth[0, 2] = tgt_cx_depth
+            K_depth[1, 2] = tgt_cy_depth
+
+            context_valid_depths = (context_depths > 0).type(torch.float32)  # invalid depth is 0     
+            
+            target_depths = context_depths.clone()
+            target_valid_depths = context_valid_depths.clone()
+            
             # Here, we set image A's frame as the world (i.e. extrinsics for A are identity).
             extrinsic_A = torch.eye(4, dtype=torch.float32)
             extrinsic_B = torch.tensor(T_rel, dtype=torch.float32)
@@ -218,6 +284,8 @@ class DatasetScannetPose(IterableDataset):
                     "extrinsics": extrinsics,
                     "intrinsics": intrinsics,
                     "image": context_images,
+                    "depth": context_depths,
+                    "valid_depth": context_valid_depths,
                     "near": self.get_bound("near", 2),
                     "far": self.get_bound("far", 2),
                     "index": context_indices,
@@ -228,6 +296,8 @@ class DatasetScannetPose(IterableDataset):
                     "extrinsics": extrinsics,
                     "intrinsics": intrinsics,
                     "image": target_images,
+                    "depth": target_depths,
+                    "valid_depth": target_valid_depths,
                     "near": self.get_bound("near", 2),
                     "far": self.get_bound("far", 2),
                     "index": context_indices,
@@ -245,6 +315,17 @@ class DatasetScannetPose(IterableDataset):
             image = Image.open(image)
             torch_images.append(self.to_tensor(image))
         return torch.stack(torch_images)
+
+    def convert_depths(
+        self,
+        depths,
+    ) -> Float[Tensor, "batch 1 height width"]:
+        torch_depths = []
+        for depth in depths:
+            depth = np.array(Image.open(depth)).astype(np.float32) / 1000.0
+            depth[~np.isfinite(depth)] = 0  # invalid
+            torch_depths.append(self.to_tensor(depth))
+        return torch.stack(torch_depths)
 
     def get_bound(
         self,

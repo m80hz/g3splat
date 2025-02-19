@@ -4,6 +4,7 @@ from einops import rearrange
 from jaxtyping import Float
 from PIL import Image
 from torch import Tensor
+import torch.nn.functional as F
 
 from ..types import AnyExample, AnyViews
 
@@ -26,10 +27,20 @@ def center_crop(
     images: Float[Tensor, "*#batch c h w"],
     intrinsics: Float[Tensor, "*#batch 3 3"],
     shape: tuple[int, int],
-) -> tuple[
-    Float[Tensor, "*#batch c h_out w_out"],  # updated images
-    Float[Tensor, "*#batch 3 3"],  # updated intrinsics
-]:
+    depths: None | Float[Tensor, "*#batch 1 h w"],
+    valid_depths: None | Float[Tensor, "*#batch 1 h w"]
+) -> (
+    tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+    ]
+    | tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+        Float[Tensor, "*#batch 1 h_out w_out"],  # updated depths
+        Float[Tensor, "*#batch 1 h_out w_out"],  # updated valid depths
+    ]
+):
     *_, h_in, w_in = images.shape
     h_out, w_out = shape
 
@@ -45,17 +56,31 @@ def center_crop(
     intrinsics[..., 0, 0] *= w_in / w_out  # fx
     intrinsics[..., 1, 1] *= h_in / h_out  # fy
 
-    return images, intrinsics
+    if depths is not None:
+        depths = depths[..., :, row : row + h_out, col : col + w_out]
+        valid_depths = valid_depths[..., :, row : row + h_out, col : col + w_out]
+        return images, intrinsics, depths, valid_depths
 
+    return images, intrinsics
 
 def rescale_and_crop(
     images: Float[Tensor, "*#batch c h w"],
     intrinsics: Float[Tensor, "*#batch 3 3"],
     shape: tuple[int, int],
-) -> tuple[
-    Float[Tensor, "*#batch c h_out w_out"],  # updated images
-    Float[Tensor, "*#batch 3 3"],  # updated intrinsics
-]:
+    depths: None | Float[Tensor, "*#batch 1 h w"],
+    valid_depths: None | Float[Tensor, "*#batch 1 h w"]
+) -> (
+    tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+    ]
+    | tuple[
+        Float[Tensor, "*#batch c h_out w_out"],  # updated images
+        Float[Tensor, "*#batch 3 3"],  # updated intrinsics
+        Float[Tensor, "*#batch 1 h_out w_out"],  # updated depths
+        Float[Tensor, "*#batch 1 h_out w_out"],  # updated valid depths
+    ]
+):
     *_, h_in, w_in = images.shape
     h_out, w_out = shape
     assert h_out <= h_in and w_out <= w_in
@@ -72,16 +97,34 @@ def rescale_and_crop(
     images = torch.stack([rescale(image, (h_scaled, w_scaled)) for image in images])
     images = images.reshape(*batch, c, h_scaled, w_scaled)
 
-    return center_crop(images, intrinsics, shape)
+    # reshape and crop depth and valid_depths as well when available
+    if depths is not None:
+        depths = F.interpolate(depths, size=(h_scaled, w_scaled), mode="bilinear", align_corners=True)
+        valid_depths = F.interpolate(depths, size=(h_scaled, w_scaled), mode="bilinear", align_corners=True)
+        valid_depths = (valid_depths > 0.99).float()
+
+    return center_crop(images, intrinsics, shape, depths=depths, valid_depths=valid_depths)
 
 
 def apply_crop_shim_to_views(views: AnyViews, shape: tuple[int, int]) -> AnyViews:
-    images, intrinsics = rescale_and_crop(views["image"], views["intrinsics"], shape)
-    return {
-        **views,
-        "image": images,
-        "intrinsics": intrinsics,
-    }
+    if "depth" in views:
+        images, intrinsics, depths, valid_depths = rescale_and_crop(views["image"], views["intrinsics"], 
+                                                                    shape, views["depth"], views["valid_depth"])
+        return {
+            **views,
+            "image": images,
+            "intrinsics": intrinsics,
+            "depth": depths,
+            "valid_depth": valid_depths
+        }
+    else:
+        images, intrinsics = rescale_and_crop(views["image"], views["intrinsics"], 
+                                              shape, depths=None, valid_depths=None)
+        return {
+            **views,
+            "image": images,
+            "intrinsics": intrinsics
+        }
 
 
 def apply_crop_shim(example: AnyExample, shape: tuple[int, int]) -> AnyExample:

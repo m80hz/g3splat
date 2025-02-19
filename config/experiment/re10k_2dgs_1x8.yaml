@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - /dataset@_group_.scannet_pose: scannet
+  - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
   - override /loss: [mse, lpips]
@@ -9,8 +9,8 @@ defaults:
 wandb:
   project: gen2dgs
   entity: ''
-  name: re10k_scannet_2dgs
-  tags: [re10k_2dgs, 256x256]
+  name: re10k_2dgs_only
+  tags: [re10k_2dgs_only, 256x256]
 
 model:
   encoder:
@@ -21,10 +21,11 @@ model:
     pretrained_weights: './pretrained_weights/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
   decoder:
     make_scale_invariant: true
-
+    depth_ratio: 1
+# depth_ratio 0 for mean depth and 1 for median depth, 0 works for most cases
 
 dataset:
-  scannet_pose:
+  re10k:
     view_sampler:
       warm_up_steps: 150_000
 
@@ -42,4 +43,7 @@ trainer:
   val_check_interval: 2000
 
 checkpointing:
+  # every_n_train_steps: 150_000
   every_n_train_steps: 20_000
+  save_top_k: 6
+  save_weights_only: true

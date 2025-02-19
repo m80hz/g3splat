@@ -16,4 +16,4 @@ highlighted:
 
 
 save_depth_concat_img: false
-output_metrics_path: baselines/re10k/evaluation_metrics.json
+output_metrics_path: baselines/scannet/evaluation_metrics.json

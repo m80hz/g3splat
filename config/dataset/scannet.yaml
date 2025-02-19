@@ -8,7 +8,7 @@ make_baseline_1: true
 augment: true
 
 input_image_shape: [256, 256]
-original_image_shape: [720, 960]
+original_image_shape: [968, 1296]
 cameras_are_circular: false
 
 baseline_min: 1e-3
