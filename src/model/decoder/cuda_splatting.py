@@ -63,8 +63,8 @@ def render_cuda(
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
     cam_trans_delta: Float[Tensor, "batch 3"] | None = None,
-) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"], Float[Tensor, "batch 3 height width"],
-           Float[Tensor, "batch height width"], Float[Tensor, "batch height width"], Float[Tensor, "batch 3 height width"]]:
+) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None,
+           Float[Tensor, "batch height width"] | None, Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None]:
 
     assert use_sh or gaussian_sh_coefficients.shape[-1] == 1
 
@@ -147,11 +147,11 @@ def render_cuda(
             # rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
         )
         all_images.append(image)
-        all_radii.append(radii)
+        # all_radii.append(radii)
                 
         # additional regularizations
         render_alpha = allmap[1:2]
-        all_rend_alphas.append(render_alpha.squeeze(0))
+        # all_rend_alphas.append(render_alpha.squeeze(0))
 
         # get normal map
         # transform normal from view space to world space
@@ -170,7 +170,7 @@ def render_cuda(
         
         # get depth distortion map
         render_dist = allmap[6:7]
-        all_rend_dists.append(render_dist.squeeze(0))
+        # all_rend_dists.append(render_dist.squeeze(0))
 
         # pseudo surface attributes
         # surf depth is either median or expected by setting depth_ratio to 1 or 0
@@ -180,12 +180,18 @@ def render_cuda(
         # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
         surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
         surf_normal = surf_normal.permute(2,0,1)
-        # remember to multiply with accum_alpha since render_normal is unnormalized.
+        # multiply with accum_alpha since render_normal is unnormalized.
         surf_normal = surf_normal * (render_alpha).detach()
         all_surf_normals.append(surf_normal)
+        
+    all_images = torch.stack(all_images)
+    all_rend_alphas = torch.stack(all_rend_alphas) if all_rend_alphas else None
+    all_rend_normals = torch.stack(all_rend_normals) if all_rend_normals else None
+    all_rend_dists = torch.stack(all_rend_dists) if all_rend_dists else None
+    all_surf_depths = torch.stack(all_surf_depths) if all_surf_depths else None
+    all_surf_normals = torch.stack(all_surf_normals) if all_surf_normals else None
 
-    return torch.stack(all_images), torch.stack(all_rend_alphas), torch.stack(all_rend_normals), \
-        torch.stack(all_rend_dists), torch.stack(all_surf_depths), torch.stack(all_surf_normals)
+    return all_images, all_rend_alphas, all_rend_normals, all_rend_dists, all_surf_depths, all_surf_normals
 
 
 def render_cuda_orthographic(

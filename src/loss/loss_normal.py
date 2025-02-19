@@ -40,10 +40,12 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         # compute the dot product over the normal channels  shape: [batch, view, height, width]
         dot = (prediction.rend_normal * prediction.surf_normal).sum(dim=2)
         normal_error = 1 - dot
-        normal_loss = lambda_normal * normal_error.mean()
+        normal_consistency_loss = lambda_normal * normal_error.mean()
 
-        dist_loss = lambda_dist * prediction.dist.mean()
+        # dist_loss = lambda_dist * prediction.dist.mean()
         
-        return normal_loss + dist_loss
+        # total_normal_loss = normal_consistency_loss + dist_loss
+        total_normal_loss = normal_consistency_loss
+        
+        return total_normal_loss
             
-        
