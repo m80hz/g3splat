@@ -12,7 +12,7 @@ from einops import einsum, rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor
 
-from ...geometry.projection import get_fov, homogenize_points, depth_to_normal
+from ...geometry.projection import get_fov, homogenize_points, depth_to_normal, depths_to_points
 
 
 def get_projection_matrix(
@@ -147,17 +147,14 @@ def render_cuda(
             # rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
         )
         all_images.append(image)
-        # all_radii.append(radii)
                 
         # additional regularizations
         render_alpha = allmap[1:2]
-        # all_rend_alphas.append(render_alpha.squeeze(0))
 
         # get normal map
         # transform normal from view space to world space
         render_normal = allmap[2:5]
         render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
-        all_rend_normals.append(render_normal)
         
         # get median depth map
         render_depth_median = allmap[5:6]
@@ -170,18 +167,33 @@ def render_cuda(
         
         # get depth distortion map
         render_dist = allmap[6:7]
-        # all_rend_dists.append(render_dist.squeeze(0))
 
         # pseudo surface attributes
         # surf depth is either median or expected by setting depth_ratio to 1 or 0
         surf_depth = render_depth_expected * (1 - depth_ratio) + depth_ratio * render_depth_median
-        all_surf_depths.append(surf_depth.squeeze(0))
         
         # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
         surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
         surf_normal = surf_normal.permute(2,0,1)
         # multiply with accum_alpha since render_normal is unnormalized.
         surf_normal = surf_normal * (render_alpha).detach()
+
+        # check normal direction: if ray dir and normal angle is smaller than 90, reverse normal
+        means3d = depths_to_points(view_matrix[i], full_projection[i], w, h, surf_depth)
+        cam_center = extrinsics[i, :3, 3].reshape(1, 3)
+        ray_dir = (means3d - cam_center).reshape(h, w, 3).permute(2, 0, 1)
+
+        normal_dir_not_correct = ((ray_dir * render_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(render_normal)
+        render_normal[normal_dir_not_correct] = -render_normal[normal_dir_not_correct]
+
+        normal_dir_not_correct = ((ray_dir * surf_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(surf_normal)
+        surf_normal[normal_dir_not_correct] = -surf_normal[normal_dir_not_correct]
+        
+        # all_radii.append(radii)
+        # all_rend_alphas.append(render_alpha.squeeze(0))
+        # all_rend_dists.append(render_dist.squeeze(0))
+        all_surf_depths.append(surf_depth.squeeze(0))
+        all_rend_normals.append(render_normal)
         all_surf_normals.append(surf_normal)
         
     all_images = torch.stack(all_images)
