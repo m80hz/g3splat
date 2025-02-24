@@ -1,5 +1,6 @@
 normal:
-  lambda_normal: 0.05
+  lambda_normal: 0.10
   lambda_distortion: 0.0
   apply_normal_after_step: 0
   apply_distortion_after_step: 0
+  normal_valid_threshol: 1e-3

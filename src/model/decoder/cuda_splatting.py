@@ -13,7 +13,7 @@ from jaxtyping import Float
 from torch import Tensor
 
 from ...geometry.projection import get_fov, homogenize_points, depth_to_normal, depths_to_points
-
+from ...misc.utils import inspect_depth_tensor
 
 def get_projection_matrix(
     near: Float[Tensor, " batch"],
@@ -154,7 +154,8 @@ def render_cuda(
         # get normal map
         # transform normal from view space to world space
         render_normal = allmap[2:5]
-        render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
+        render_normal = render_normal  # keep normal in camera frame
+        # render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
         
         # get median depth map
         render_depth_median = allmap[5:6]
@@ -173,21 +174,29 @@ def render_cuda(
         surf_depth = render_depth_expected * (1 - depth_ratio) + depth_ratio * render_depth_median
         
         # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
-        surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
+        # surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
+        surf_normal = depth_to_normal(torch.eye(4, 4, dtype=view_matrix[i].dtype, device=view_matrix[i].device), projection_matrix[i], w, h, surf_depth)
         surf_normal = surf_normal.permute(2,0,1)
         # multiply with accum_alpha since render_normal is unnormalized.
         surf_normal = surf_normal * (render_alpha).detach()
+        
+        # inspect_depth_tensor(surf_depth)
+        # inspect_depth_tensor(render_depth_expected)
+        # inspect_depth_tensor(render_depth_median)
+        # inspect_depth_tensor(torch.sum(render_normal, dim=0))
+        # inspect_depth_tensor(torch.sum(surf_normal, dim=0))
+        # exit()
 
-        # check normal direction: if ray dir and normal angle is smaller than 90, reverse normal
-        means3d = depths_to_points(view_matrix[i], full_projection[i], w, h, surf_depth)
-        cam_center = extrinsics[i, :3, 3].reshape(1, 3)
-        ray_dir = (means3d - cam_center).reshape(h, w, 3).permute(2, 0, 1)
+        # # check normal direction: if ray dir and normal angle is smaller than 90, reverse normal
+        # means3d = depths_to_points(view_matrix[i], full_projection[i], w, h, surf_depth)
+        # cam_center = extrinsics[i, :3, 3].reshape(1, 3)
+        # ray_dir = (means3d - cam_center).reshape(h, w, 3).permute(2, 0, 1)
 
-        normal_dir_not_correct = ((ray_dir * render_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(render_normal)
-        render_normal[normal_dir_not_correct] = -render_normal[normal_dir_not_correct]
+        # normal_dir_not_correct = ((ray_dir * render_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(render_normal)
+        # render_normal[normal_dir_not_correct] = -render_normal[normal_dir_not_correct]
 
-        normal_dir_not_correct = ((ray_dir * surf_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(surf_normal)
-        surf_normal[normal_dir_not_correct] = -surf_normal[normal_dir_not_correct]
+        # normal_dir_not_correct = ((ray_dir * surf_normal).sum(axis=0) > 0).unsqueeze(0).expand_as(surf_normal)
+        # surf_normal[normal_dir_not_correct] = -surf_normal[normal_dir_not_correct]
         
         # all_radii.append(radii)
         # all_rend_alphas.append(render_alpha.squeeze(0))

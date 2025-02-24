@@ -4,13 +4,13 @@ defaults:
   - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips]
+  - override /loss: [mse, lpips, normal]
 
 wandb:
   project: gen2dgs
   entity: ''
-  name: re10k_2dgs_only
-  tags: [re10k_2dgs_only, 256x256]
+  name: re10k_2dgs_normal
+  tags: [re10k_2dgs_normal, 256x256]
 
 model:
   encoder:
@@ -21,8 +21,9 @@ model:
     pretrained_weights: './pretrained_weights/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
   decoder:
     make_scale_invariant: true
-    depth_ratio: 1
-# depth_ratio 0 for mean depth and 1 for median depth, 0 works for most cases
+    depth_ratio: 0
+# depth_ratio 0 for mean (expected) depth
+# depth_ratio 1 for median depth, 0 works for most cases
 
 dataset:
   re10k:
