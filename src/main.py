@@ -1,9 +1,6 @@
 import os
 from pathlib import Path
 
-# Must be set before trainer or distributed init
-os.environ["NCCL_P2P_DISABLE"] = "1"
-
 import hydra
 import torch
 import wandb
@@ -39,6 +36,32 @@ with install_import_hook(
 def cyan(text: str) -> str:
     return f"{Fore.CYAN}{text}{Fore.RESET}"
 
+# Determine global rank (default to 0 if not set)
+global_rank = int(os.environ.get("LOCAL_RANK", 0))
+
+# class PrintGpuUsageCallback(Callback):
+#     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+#         # Print only once from the main (rank=0) process in DDP
+#         # if trainer.global_rank == 0:
+#         print("\n--- GPU Memory Usage ---")
+#         for i in range(torch.cuda.device_count()):
+#             # GPU properties
+#             props = torch.cuda.get_device_properties(i)
+#             gpu_name = props.name
+#             total_vram = props.total_memory / (1024**3)  # bytes -> GB
+            
+#             # Current usage
+#             allocated = torch.cuda.memory_allocated(i) / (1024**3)  # GB
+#             reserved  = torch.cuda.memory_reserved(i) / (1024**3)   # GB
+
+#             print(
+#                 f"GPU {i}: {gpu_name}\n"
+#                 f"  - Total VRAM: {total_vram:.2f} GB\n"
+#                 f"  - Allocated : {allocated:.2f} GB\n"
+#                 f"  - Reserved  : {reserved:.2f} GB\n"
+#             )
+#         print("------------------------\n")
+
 
 @hydra.main(
     version_base=None,
@@ -57,7 +80,7 @@ def train(cfg_dict: DictConfig):
 
     # Set up logging with wandb.
     callbacks = []
-    if cfg_dict.wandb.mode != "disabled":
+    if cfg_dict.wandb.mode != "disabled" and global_rank == 0:
         logger = WandbLogger(
             project=cfg_dict.wandb.project,
             mode=cfg_dict.wandb.mode,
@@ -76,17 +99,22 @@ def train(cfg_dict: DictConfig):
         logger = LocalLogger()
 
     # Set up checkpointing.
-    callbacks.append(
-        ModelCheckpoint(
-            output_dir / "checkpoints",
-            every_n_train_steps=cfg.checkpointing.every_n_train_steps,
-            save_top_k=cfg.checkpointing.save_top_k,
-            save_weights_only=cfg.checkpointing.save_weights_only,
-            monitor="info/global_step",
-            mode="max",
+    # Only add ModelCheckpoint if this is rank 0
+    if global_rank == 0:
+        callbacks.append(
+            ModelCheckpoint(
+                output_dir / "checkpoints",
+                every_n_train_steps=cfg.checkpointing.every_n_train_steps,
+                save_top_k=cfg.checkpointing.save_top_k,
+                save_weights_only=cfg.checkpointing.save_weights_only,
+                save_last=True,
+                monitor="info/global_step",
+                mode="max",
+            )
         )
-    )
-    callbacks[-1].CHECKPOINT_EQUALS_CHAR = '_'
+        callbacks[-1].CHECKPOINT_EQUALS_CHAR = '_'
+
+    # callbacks.append(PrintGpuUsageCallback())
 
     # Prepare the checkpoint for loading.
     checkpoint_path = update_checkpoint_path(cfg.checkpointing.load, cfg.wandb)
@@ -101,12 +129,12 @@ def train(cfg_dict: DictConfig):
         logger=logger,
         devices="auto",
         # devices=1,
-        strategy=(
-            "ddp_find_unused_parameters_true"
-            if torch.cuda.device_count() > 1
-            else "auto"
-        ),
-        # strategy="auto",
+        strategy="ddp_find_unused_parameters_true",
+        # strategy=(
+        #     "ddp_find_unused_parameters_true"
+        #     if torch.cuda.device_count() > 1
+        #     else "auto"
+        # ),
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         check_val_every_n_epoch=None,
