@@ -5,8 +5,8 @@ name: noposplat
 
 opacity_mapping:
   initial: 0.0
-  final: 0.0
-  warm_up: 1
+  final: 3.0
+  warm_up: 1000
 
 num_monocular_samples: 32
 num_surfaces: 1
