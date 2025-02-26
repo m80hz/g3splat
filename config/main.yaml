@@ -5,7 +5,7 @@ defaults:
 
 wandb:
   project: gen2dgs
-  entity: scene-representation-group
+  entity: gen-splat
   name: placeholder
   mode: disabled
 

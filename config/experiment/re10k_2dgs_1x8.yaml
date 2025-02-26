@@ -7,8 +7,6 @@ defaults:
   - override /loss: [mse, lpips]
 
 wandb:
-  project: gen2dgs
-  entity: ''
   name: re10k_2dgs_alpha
   tags: [re10k_2dgs_alpha, 256x256]
 
