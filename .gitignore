@@ -173,6 +173,7 @@ results/
 .bashrc
 /launcher_venv
 /slurm_logs
+slurm-*.out
 *.torch
 *.ckpt
 *.pth

@@ -4,11 +4,11 @@ defaults:
   - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips]
+  - override /loss: [mse, lpips, normal]
 
 wandb:
-  name: re10k_2dgs
-  tags: [re10k_2dgs, 256x256]
+  name: re10k_normal
+  tags: [re10k_normal, 256x256]
 
 model:
   encoder:
@@ -45,4 +45,3 @@ checkpointing:
   # every_n_train_steps: 150_000
   every_n_train_steps: 20_000
   save_top_k: 6
-  save_weights_only: true

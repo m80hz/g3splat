@@ -7,8 +7,8 @@ defaults:
   - override /loss: [mse, lpips, normal]
 
 wandb:
-  name: re10k_2dgs_normal
-  tags: [re10k_2dgs_normal, 256x256]
+  name: re10k_normal_hpc
+  tags: [re10k_normal_hpc, 256x256]
 
 model:
   encoder:
@@ -26,23 +26,28 @@ model:
 dataset:
   re10k:
     view_sampler:
-      warm_up_steps: 150_000
+      # warm_up_steps: 9375
+      warm_up_steps: 46875
 
 optimizer:
-  lr: 5e-5
-  warm_up_steps: 4000
+  lr: 2e-4
+  # warm_up_steps: 125
+  warm_up_steps: 625
   backbone_lr_multiplier: 0.1
 
 data_loader:
   train:
-    batch_size: 8
+    batch_size: 6
 
 trainer:
-  max_steps: 300_001
+  # max_steps: 18751
+  # max_steps: 20001
+  max_steps: 100000
+  # val_check_interval: 500
   val_check_interval: 2000
+  num_nodes: 1
 
 checkpointing:
-  # every_n_train_steps: 150_000
-  every_n_train_steps: 20_000
-  save_top_k: 6
-  save_weights_only: true
+  every_n_train_steps: 9375
+  # every_n_train_steps: 4687
+  save_top_k: 5

@@ -19,6 +19,9 @@ model:
     pretrained_weights: './pretrained_weights/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth'
   decoder:
     make_scale_invariant: true
+    depth_ratio: 0
+# depth_ratio 0 for mean (expected) depth
+# depth_ratio 1 for median depth, 0 works for most cases
 
 dataset:
   re10k:
@@ -26,8 +29,8 @@ dataset:
       warm_up_steps: 150_000
 
 optimizer:
-  lr: 1e-4
-  warm_up_steps: 2000
+  lr: 5e-5
+  warm_up_steps: 4000
   backbone_lr_multiplier: 0.1
 
 data_loader:
@@ -39,4 +42,7 @@ trainer:
   val_check_interval: 2000
 
 checkpointing:
-  every_n_train_steps: 150_000
+  # every_n_train_steps: 150_000
+  every_n_train_steps: 20_000
+  save_top_k: 6
+  
