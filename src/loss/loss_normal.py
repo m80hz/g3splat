@@ -40,10 +40,9 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         
         # Only apply the normal consistency loss after a certain training step.
         lambda_normal = self.cfg.lambda_normal if global_step > self.cfg.apply_normal_after_step else 0.0
-        if lambda_normal == 0.0:
-            return torch.tensor(0.0, device=prediction.depth.device)
-
         lambda_dist = self.cfg.lambda_distortion if global_step > self.cfg.apply_distortion_after_step else 0.0
+        if lambda_normal == 0.0 and lambda_dist == 0.0:
+            return torch.tensor(0.0, device=prediction.depth.device)
 
         eps = 1e-6  # small constant for numerical stability
 
