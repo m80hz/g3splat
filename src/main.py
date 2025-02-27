@@ -1,5 +1,9 @@
 import os
 from pathlib import Path
+# force temp directories due to the lack of space in /tmp
+os.environ["TMPDIR"] = "/hpcfs/users/a173363ade/tmp"
+os.environ["TMP"] = "/hpcfs/users/a173363ade/tmp"
+os.environ["TEMP"] = "/hpcfs/users/a173363ade/tmp"
 
 import hydra
 import torch
