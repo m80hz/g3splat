@@ -26,13 +26,14 @@ model:
 dataset:
   re10k:
     view_sampler:
-      # warm_up_steps: 9375
-      warm_up_steps: 46875
+      warm_up_steps: 9375
+      # warm_up_steps: 46875
 
 optimizer:
   lr: 2e-4
-  # warm_up_steps: 125
-  warm_up_steps: 625
+  warm_up_steps: 125
+  # lr: 1e-4
+  # warm_up_steps: 625
   backbone_lr_multiplier: 0.1
 
 data_loader:
@@ -40,14 +41,14 @@ data_loader:
     batch_size: 6
 
 trainer:
-  # max_steps: 18751
-  # max_steps: 20001
-  max_steps: 100000
-  # val_check_interval: 500
-  val_check_interval: 2000
-  num_nodes: 1
+  max_steps: 20001
+  val_check_interval: 500
+  num_nodes: 6
+  # max_steps: 100000
+  # val_check_interval: 2500
+  # num_nodes: 1
 
 checkpointing:
-  every_n_train_steps: 9375
-  # every_n_train_steps: 4687
+  every_n_train_steps: 4687
+  # every_n_train_steps: 9375
   save_top_k: 5
