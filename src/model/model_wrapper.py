@@ -413,6 +413,8 @@ class ModelWrapper(LightningModule):
 
         surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
         render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        rend_dist = vis_depth_map(output.dist[0])
+        rend_alpha = vis_depth_map(output.alpha[0])
 
         # Construct comparison image.
         context_img = inverse_normalize(batch["context"]["image"][0])
@@ -434,7 +436,9 @@ class ModelWrapper(LightningModule):
             add_label(vcat(*rgb_pred), "Target (Prediction)"),
             add_label(vcat(*depth_pred), "Depth (Prediction)"),
             add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
-            add_label(vcat(*render_normal), "Rendered Normal (Prediction)")
+            add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
+            add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
+            add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
         )
 
         if self.distiller is not None:

@@ -227,8 +227,8 @@ def render_cuda(
         # surf_normal[normal_dir_not_correct] = -surf_normal[normal_dir_not_correct]
         
         # all_radii.append(radii)
-        # all_rend_alphas.append(render_alpha.squeeze(0))
-        # all_rend_dists.append(render_dist.squeeze(0))
+        all_rend_alphas.append(render_alpha.squeeze(0))
+        all_rend_dists.append(render_dist.squeeze(0))
         all_surf_depths.append(surf_depth.squeeze(0))
         all_rend_normals.append(render_normal)
         all_surf_normals.append(surf_normal)

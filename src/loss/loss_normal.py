@@ -43,14 +43,16 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         if lambda_normal == 0.0:
             return torch.tensor(0.0, device=prediction.depth.device)
 
-        # lambda_dist = self.cfg.lambda_distortion if global_step > self.cfg.apply_distortion_after_step else 0.0
+        lambda_dist = self.cfg.lambda_distortion if global_step > self.cfg.apply_distortion_after_step else 0.0
 
         eps = 1e-6  # small constant for numerical stability
 
         depth = rearrange(prediction.depth, "b v h w -> (b v) h w")                        # (B, H, W)
         surf_normal = rearrange(prediction.surf_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (depth-derived normals)
         rend_normal = rearrange(prediction.rend_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (rendered normals)
+        rend_dist = rearrange(prediction.dist, "b v h w -> (b v) h w")                     # (B, H, W)   (depth distortion)        
         
+
         # -------------------------------
         # 1. Normal Validity Masking
         # -------------------------------
@@ -132,12 +134,13 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         loss_sum = masked_loss.sum()
         valid_count = final_valid_mask.sum() + eps
         normal_consistency_loss = loss_sum / valid_count
-
-        # dist_loss = lambda_dist * prediction.dist.mean()
-        # total_normal_loss = normal_consistency_loss + dist_loss
-
         total_normal_loss = lambda_normal * normal_consistency_loss
-        return total_normal_loss
+
+        dist_loss = lambda_dist * (rend_dist).mean()
+
+        total_loss = total_normal_loss + dist_loss
+        
+        return total_loss
 
 
     # from ..misc.utils import inspect_depth_tensor, vis_depth_map
