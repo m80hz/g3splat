@@ -1,6 +1,11 @@
 normal:
-  lambda_normal: 0.10
-  lambda_distortion: 0.0
-  apply_normal_after_step: 0
-  apply_distortion_after_step: 0
-  normal_valid_threshold: 1e-3
+  lambda_normal: 0.1
+  lambda_distortion: 1.0
+  apply_normal_after_step: 2000
+  apply_distortion_after_step: 1000
+
+  valid_threshold: 0.1
+  depth_valid_threshold: 1e-3
+  depth_disc_multiplier: 3
+  depth_disc_slope: 0.2
+  huber_delta: 0.1

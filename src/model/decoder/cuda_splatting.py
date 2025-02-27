@@ -2,6 +2,8 @@ from math import isqrt
 from typing import Literal
 
 import torch
+import torch.nn.functional as F
+
 # from diff_gaussian_rasterization import (
 #     GaussianRasterizationSettings,
 #     GaussianRasterizer,
@@ -152,10 +154,11 @@ def render_cuda(
         render_alpha = allmap[1:2]
 
         # get normal map
-        # transform normal from view space to world space
         render_normal = allmap[2:5]
-        render_normal = render_normal  # keep normal in camera frame
-        # render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
+        # render_normal = render_normal  # keep normal in camera frame
+        # transform normal from view space to world space
+        render_normal = (render_normal.permute(1,2,0) @ (view_matrix[i][:3,:3].T)).permute(2,0,1)
+        render_normal = F.normalize(render_normal, dim=0)
         
         # get median depth map
         render_depth_median = allmap[5:6]
@@ -174,18 +177,43 @@ def render_cuda(
         surf_depth = render_depth_expected * (1 - depth_ratio) + depth_ratio * render_depth_median
         
         # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
-        # surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
-        surf_normal = depth_to_normal(torch.eye(4, 4, dtype=view_matrix[i].dtype, device=view_matrix[i].device), projection_matrix[i], w, h, surf_depth)
+        surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
+        # surf_normal = depth_to_normal(torch.eye(4, 4, dtype=view_matrix[i].dtype, device=view_matrix[i].device), projection_matrix[i], w, h, surf_depth)
         surf_normal = surf_normal.permute(2,0,1)
         # multiply with accum_alpha since render_normal is unnormalized.
         surf_normal = surf_normal * (render_alpha).detach()
+        surf_normal = F.normalize(surf_normal, dim=0)
         
-        # inspect_depth_tensor(surf_depth)
-        # inspect_depth_tensor(render_depth_expected)
+        # print(f'{render_alpha.shape=}')
+        # inspect_depth_tensor(render_alpha)
+        
+        # print(f'{render_depth_median.shape=}')
         # inspect_depth_tensor(render_depth_median)
-        # inspect_depth_tensor(torch.sum(render_normal, dim=0))
-        # inspect_depth_tensor(torch.sum(surf_normal, dim=0))
-        # exit()
+
+        # print(f'{render_depth_expected.shape=}')
+        # inspect_depth_tensor(render_depth_expected)
+        
+        # print(f'{surf_normal.shape=}')
+        # inspect_depth_tensor(torch.sqrt(torch.sum(surf_normal ** 2, dim=0)))
+
+        # print(f'{render_normal.shape=}')
+        # inspect_depth_tensor(torch.sqrt(torch.sum(render_normal ** 2, dim=0)))
+
+        # import matplotlib.pyplot as plt
+        # from ...visualization.normal import vis_normal
+        # surf_normal_img = vis_normal(surf_normal.permute(1, 2, 0).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+        # render_normal_img = vis_normal(render_normal.permute(1, 2, 0).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
+        # plt.imsave(f"surf_normal_img.png", surf_normal_img)
+        # plt.imsave(f"render_normal_img.png", render_normal_img)
+        
+        # from ...geometry.surface_normal import surface_normal_from_depth
+        # foc_x = intrinsics[0, 0, 0] * w
+        # foc_y = intrinsics[0, 1, 1] * h
+        # normal_pts = surface_normal_from_depth(surf_depth.unsqueeze(0), focal_x=foc_x[None], focal_y=foc_y[None], valid_mask=(surf_depth.unsqueeze(0) > 0))
+        # normal_depth_vis = vis_normal(normal_pts.squeeze(0).permute(1, 2, 0).unsqueeze(0))[0].detach().cpu().numpy()
+        # plt.imsave(f"surface_normal_from_surf_depths.png", normal_depth_vis)
+        
+        # xx = input("Enter: ")
 
         # # check normal direction: if ray dir and normal angle is smaller than 90, reverse normal
         # means3d = depths_to_points(view_matrix[i], full_projection[i], w, h, surf_depth)

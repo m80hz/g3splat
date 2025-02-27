@@ -4,11 +4,11 @@ defaults:
   - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips]
+  - override /loss: [mse, lpips, normal]
 
 wandb:
-  name: re10k_2dgs
-  tags: [re10k_2dgs, 256x256]
+  name: re10k_2dgs_normal
+  tags: [re10k_2dgs_normal, 256x256]
 
 model:
   encoder:

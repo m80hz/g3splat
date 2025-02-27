@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import torch
-from einops import reduce
+from einops import reduce, rearrange
 from jaxtyping import Float
 from torch import Tensor
 import torch.nn.functional as F
@@ -11,16 +11,17 @@ from ..model.decoder.decoder import DecoderOutput
 from ..model.types import Gaussians
 from .loss import Loss
 
-# from ..misc.utils import inspect_depth_tensor, vis_depth_map
-# import matplotlib.pyplot as plt
-
 @dataclass
 class LossNormalCfg:
     lambda_normal: float
     lambda_distortion: float
     apply_normal_after_step: int
     apply_distortion_after_step: int
-    normal_valid_threshold: float = 1e-6  # threshold to consider a normal valid
+    valid_threshold: float = 1e-1  
+    depth_valid_threshold: float = 1e-3
+    depth_disc_multiplier: float = 1.5
+    depth_disc_slope: float = 0.1
+    huber_delta: float = 0.1
 
 
 @dataclass
@@ -37,90 +38,131 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         global_step: int,
     ) -> Float[Tensor, ""]:
         
-        # regularization
+        # Only apply the normal consistency loss after a certain training step.
         lambda_normal = self.cfg.lambda_normal if global_step > self.cfg.apply_normal_after_step else 0.0
-        lambda_dist = self.cfg.lambda_distortion if global_step > self.cfg.apply_distortion_after_step else 0.0
+        if lambda_normal == 0.0:
+            return torch.tensor(0.0, device=prediction.depth.device)
 
-        depth = prediction.depth  # shape: (B, V, H, W)
+        # lambda_dist = self.cfg.lambda_distortion if global_step > self.cfg.apply_distortion_after_step else 0.0
+
+        eps = 1e-6  # small constant for numerical stability
+
+        depth = rearrange(prediction.depth, "b v h w -> (b v) h w")                        # (B, H, W)
+        surf_normal = rearrange(prediction.surf_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (depth-derived normals)
+        rend_normal = rearrange(prediction.rend_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (rendered normals)
         
-        # Compute a robust statistic – here we use the median depth across all elements.
-        median_depth = depth.median()
-        # Adaptive threshold: 10% of the median depth
-        adaptive_threshold = 0.05 * median_depth  # adjust the factor as needed
-
-        # Compute depth differences along x and y
-        d_dx = torch.abs(depth[:, :, :, 1:] - depth[:, :, :, :-1])
-        d_dy = torch.abs(depth[:, :, 1:, :] - depth[:, :, :-1, :])
-
-        # Pad to get back to (B, V, H, W)
-        d_dx = F.pad(d_dx, (0, 1, 0, 0), mode='replicate')
-        d_dy = F.pad(d_dy, (0, 0, 0, 1), mode='replicate')
-
-        # One option: use the maximum difference per pixel (or you could use a norm)
-        grad_mag = torch.max(d_dx, d_dy)
-
-        # Create a mask that selects only the pixels with small depth differences
-        depth_mask = grad_mag < adaptive_threshold  # shape: (B, V, H, W)
-
-        # Validate normals: check that the magnitude of both normals is above a small threshold.
-        valid_rend = torch.norm(prediction.rend_normal, dim=2) > self.cfg.normal_valid_threshold
-        valid_surf = torch.norm(prediction.surf_normal, dim=2) > self.cfg.normal_valid_threshold
-        normals_valid_mask = valid_rend & valid_surf
-
-        # Create a near-far mask based on raw depth:
-        nonzero_depth = depth[depth > 0]
-        if nonzero_depth.numel() > 0:
-            near_depth = nonzero_depth.quantile(0.10)
-            far_depth = nonzero_depth.quantile(0.90)
-        else:
-            near_depth = depth.min()
-            far_depth = depth.max()
-        near_far_mask = (depth >= near_depth) & (depth <= far_depth)
-
-        # Combine masks: continuous depth, valid normals, and in the near-far range contribute
-        valid_mask = depth_mask & normals_valid_mask & near_far_mask
-
-        # Compute dot product between rendered and surface normals; both are (B, V, 3, H, W)
-        dot = (prediction.rend_normal * prediction.surf_normal).sum(dim=2)  # now (B, V, H, W)
-        normal_error = 1 - torch.abs(dot)
-
-        # Apply the combined valid mask to compute the loss
-        if valid_mask.sum() > 0:
-            normal_consistency_loss = lambda_normal * normal_error[valid_mask].mean()
-        else:
-            normal_consistency_loss = torch.tensor(0.0, dtype=normal_error.dtype, device=normal_error.device)
-
-        # fig, ax = plt.subplots(2, 6, figsize=(21, 14))
-        # # Top row titles
-        # ax[0, 0].set_title("Context Image")
-        # ax[0, 1].set_title("Target")
-        # ax[0, 2].set_title("Rendered Depth")
-        # ax[0, 3].set_title("Rendered Normal")
-        # ax[0, 4].set_title("Surface Normal")
-        # ax[0, 5].set_title("Valid Mask")
-
-        # ax[0, 0].imshow(batch["context"]["image"][0, 0].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
-        # ax[1, 0].imshow(batch["context"]["image"][0, 1].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
-        # ax[0, 1].imshow(batch["target"]["image"][0, 0].detach().cpu().permute(1, 2, 0))
-        # ax[1, 1].imshow(batch["target"]["image"][0, 1].detach().cpu().permute(1, 2, 0))
-        # ax[0, 2].imshow(vis_depth_map(depth[0, 0]).detach().cpu().permute(1, 2, 0), cmap='grey')
-        # ax[1, 2].imshow(vis_depth_map(depth[0, 1]).detach().cpu().permute(1, 2, 0), cmap='grey')
-        # ax[0, 3].imshow(prediction.rend_normal[0, 0].detach().cpu().permute(1, 2, 0))
-        # ax[1, 3].imshow(prediction.rend_normal[0, 1].detach().cpu().permute(1, 2, 0))
-        # ax[0, 4].imshow(prediction.surf_normal[0, 0].detach().cpu().permute(1, 2, 0))
-        # ax[1, 4].imshow(prediction.surf_normal[0, 1].detach().cpu().permute(1, 2, 0))
-        # ax[0, 5].imshow(valid_mask[0, 0].detach().cpu(), cmap='grey')
-        # ax[1, 5].imshow(valid_mask[0, 1].detach().cpu(), cmap='grey')
+        # -------------------------------
+        # 1. Normal Validity Masking
+        # -------------------------------
+        norm_surf = torch.norm(surf_normal, dim=1, keepdim=True)  # (B, 1, H, W)
+        norm_rend = torch.norm(rend_normal, dim=1, keepdim=True)  # (B, 1, H, W)
+        valid_normal_mask = ((norm_surf > self.cfg.valid_threshold) & (norm_rend > self.cfg.valid_threshold)).float()
         
-        # plt.tight_layout()
-        # # plt.show()
-        # plt.savefig(f"normal_eval_{global_step}.png")
+        
+        # -------------------------------
+        # 2. Depth Validity Masking
+        # -------------------------------
+        valid_depth_mask = (depth > self.cfg.depth_valid_threshold).float().unsqueeze(1)  # (B, 1, H, W)
+        
+        # Combined mask from normals and depth validity.
+        valid_mask = valid_normal_mask * valid_depth_mask  # (B, 1, H, W)
+        
+        
+        # -------------------------------
+        # 3. Gradient-Based Soft Mask for Depth Discontinuities
+        # -------------------------------
+        # Robustly normalize depth per image using median and standard deviation to mitigate outliers.
+        B, H, W = depth.shape
+        depth = depth.float()  # ensure floating point for computations
+        
+        # Compute median and standard deviation per image (flattening spatial dimensions)
+        depth_flat = depth.view(B, -1)
+        depth_median = depth_flat.median(dim=1)[0].view(B, 1, 1)
+        depth_std = depth_flat.std(dim=1).view(B, 1, 1)
+        depth_norm = (depth - depth_median) / (depth_std + eps)  # (B, H, W)
 
+        # Compute spatial gradients of the normalized depth using finite differences.
+        # Horizontal gradient.
+        grad_x = torch.abs(depth_norm[:, :, 1:] - depth_norm[:, :, :-1])
+        grad_x = F.pad(grad_x, (0, 1), mode='replicate')  # pad to get shape (B, H, W)
+        # Vertical gradient.
+        grad_y = torch.abs(depth_norm[:, 1:, :] - depth_norm[:, :-1, :])
+        grad_y = F.pad(grad_y, (0, 0, 0, 1), mode='replicate')  # shape (B, H, W)
+
+        # Compute gradient magnitude.
+        grad_mag = torch.sqrt(grad_x ** 2 + grad_y ** 2)  # (B, H, W)
+        
+        # Compute an adaptive threshold per image based on the median gradient magnitude.
+        adaptive_threshold = torch.median(grad_mag.view(B, -1), dim=1)[0].view(B, 1, 1)
+        adaptive_threshold = adaptive_threshold * self.cfg.depth_disc_multiplier
+
+        # Create a soft mask: pixels with gradient magnitude much lower than the adaptive threshold have weight ~1,
+        # while those with high gradient magnitude are downweighted.
+        # Using a sigmoid function for smooth transition.
+        soft_mask = 1.0 / (1.0 + torch.exp((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope))    # soft_mask: shape (B, H, W)
+        
+        # Incorporate the soft mask into the overall validity mask.
+        # final_valid_mask = valid_mask * soft_mask.unsqueeze(1)  # (B, 1, H, W)
+        final_valid_mask = valid_mask
+        
+        # -------------------------------
+        # 4. Compute Robust Angular Loss
+        # -------------------------------
+        # Normalize the normals (avoid division-by-zero using eps).
+        surf_normal_normed = surf_normal / (norm_surf + eps)
+        rend_normal_normed = rend_normal / (norm_rend + eps)
+
+        # Compute the dot product per pixel; using absolute value to account for direction ambiguity (n and -n are equivalent).
+        dot_product = torch.sum(surf_normal_normed * rend_normal_normed, dim=1)  # (B, H, W)
+        abs_dot = torch.abs(dot_product)
+        angular_error = 1.0 - abs_dot  # Zero error when perfectly aligned (or anti-aligned).
+
+        # Apply a robust Huber loss (Smooth L1) to the angular error.
+        loss_per_pixel = F.smooth_l1_loss(
+            angular_error, 
+            torch.zeros_like(angular_error), 
+            reduction='none', 
+            beta=self.cfg.huber_delta
+        )
+
+        # Mask out invalid pixels: final_valid_mask is (B, 1, H, W)
+        masked_loss = loss_per_pixel * final_valid_mask.squeeze(1)
+
+        # Average the loss over the valid pixels (avoid division by zero).
+        loss_sum = masked_loss.sum()
+        valid_count = final_valid_mask.sum() + eps
+        normal_consistency_loss = loss_sum / valid_count
 
         # dist_loss = lambda_dist * prediction.dist.mean()
         # total_normal_loss = normal_consistency_loss + dist_loss
 
-        total_normal_loss = normal_consistency_loss
-        
+        total_normal_loss = lambda_normal * normal_consistency_loss
         return total_normal_loss
+
+
+    # from ..misc.utils import inspect_depth_tensor, vis_depth_map
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots(2, 6, figsize=(21, 14))
+    # # Top row titles
+    # ax[0, 0].set_title("Context Image")
+    # ax[0, 1].set_title("Target")
+    # ax[0, 2].set_title("Rendered Depth")
+    # ax[0, 3].set_title("Rendered Normal")
+    # ax[0, 4].set_title("Surface Normal")
+    # ax[0, 5].set_title("Valid Mask")
+    # ax[0, 0].imshow(batch["context"]["image"][0, 0].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
+    # ax[1, 0].imshow(batch["context"]["image"][0, 1].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
+    # ax[0, 1].imshow(batch["target"]["image"][0, 0].detach().cpu().permute(1, 2, 0))
+    # ax[1, 1].imshow(batch["target"]["image"][0, 1].detach().cpu().permute(1, 2, 0))
+    # ax[0, 2].imshow(vis_depth_map(depth[0, 0]).detach().cpu().permute(1, 2, 0), cmap='grey')
+    # ax[1, 2].imshow(vis_depth_map(depth[0, 1]).detach().cpu().permute(1, 2, 0), cmap='grey')
+    # ax[0, 3].imshow(prediction.rend_normal[0, 0].detach().cpu().permute(1, 2, 0))
+    # ax[1, 3].imshow(prediction.rend_normal[0, 1].detach().cpu().permute(1, 2, 0))
+    # ax[0, 4].imshow(prediction.surf_normal[0, 0].detach().cpu().permute(1, 2, 0))
+    # ax[1, 4].imshow(prediction.surf_normal[0, 1].detach().cpu().permute(1, 2, 0))
+    # ax[0, 5].imshow(valid_mask[0, 0].detach().cpu(), cmap='grey')
+    # ax[1, 5].imshow(valid_mask[0, 1].detach().cpu(), cmap='grey')
+    # plt.tight_layout()
+    # # plt.show()
+    # plt.savefig(f"normal_eval_{global_step}.png")
             

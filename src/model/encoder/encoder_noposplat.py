@@ -21,6 +21,7 @@ from .common.gaussian_adapter import GaussianAdapter, GaussianAdapterCfg, Unifie
 from .encoder import Encoder
 from .visualization.encoder_visualizer_epipolar_cfg import EncoderVisualizerEpipolarCfg
 
+from ...geometry.surface_normal import surface_normal_from_depth
 
 inf = float('inf')
 
@@ -202,14 +203,32 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
                 (h, w),
             )
 
+        # surface normal from depths (pointcloud)
+        # pts_all --> (b, v, (h w), s=1, d=3)
+        all_pts_depth = depths.squeeze(-2)
+        all_pts_depth = rearrange(all_pts_depth, "b v (h w) d -> (b v) h w d", h=h, w=w)   # (b v) h w 1
+
+        foc_x = context["intrinsics"][0, 0, 0, 0]*w
+        foc_y = context["intrinsics"][0, 0, 1, 1]*h
+        normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
+                                            valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2))
+        
+        # import matplotlib.pyplot as plt
+        # from ...visualization.normal import vis_normal
+        # for i in range(normal_pts.shape[0]):
+        #     normal_depth_vis = vis_normal(normal_pts[i].permute(1, 2, 0).unsqueeze(0))[0].detach().cpu().numpy()
+        #     plt.imsave(f"surface_normal_from_depths_{i}.png", normal_depth_vis)
+        
         # Dump visualizations if needed.
         if visualization_dump is not None:
             visualization_dump["depth"] = rearrange(
                 depths, "b v (h w) srf s -> b v h w srf s", h=h, w=w
             )
+            visualization_dump["normal_pts"] = rearrange(
+                normal_pts, "(b v) xyz h w -> b v h w xyz", b=b, v=v
+            )            
             visualization_dump["scales"] = rearrange(
-                # gaussians.scales, "b v r srf spp xyz -> b (v r srf spp) xyz"
-                gaussians.scales, "b v r srf spp ss -> b (v r srf spp) ss"
+                gaussians.scales, "b v r srf spp xy -> b (v r srf spp) xy"
             )
             visualization_dump["rotations"] = rearrange(
                 gaussians.rotations, "b v r srf spp xyzw -> b (v r srf spp) xyzw"

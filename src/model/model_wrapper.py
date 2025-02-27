@@ -42,7 +42,7 @@ from ..visualization.validation_in_3d import render_cameras, render_projections
 from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
-
+from ..visualization.normal import vis_normal
 
 @dataclass
 class OptimizerCfg:
@@ -399,6 +399,9 @@ class ModelWrapper(LightningModule):
         if gaussian_means.shape[-1] == 3:
             gaussian_means = gaussian_means.mean(dim=-1)
 
+        # surface normals derived from pointclouds
+        surf_normals_pts = visualization_dump["normal_pts"][0]
+
         # Compute validation metrics.
         rgb_gt = batch["target"]["image"][0]
         psnr = compute_psnr(rgb_gt, rgb_pred).mean()
@@ -408,18 +411,30 @@ class ModelWrapper(LightningModule):
         ssim = compute_ssim(rgb_gt, rgb_pred).mean()
         self.log(f"val/ssim", ssim)
 
+        surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+
         # Construct comparison image.
         context_img = inverse_normalize(batch["context"]["image"][0])
         context_img_depth = vis_depth_map(gaussian_means)
+        context_img_normal = vis_normal(surf_normals_pts).permute(0, 3, 1, 2).float() / 255.0
+        vis_gaps = torch.ones_like(context_img)
         context = []
+        context_normals = []
         for i in range(context_img.shape[0]):
             context.append(context_img[i])
             context.append(context_img_depth[i])
+            context_normals.append(context_img_normal[i])
+            context_normals.append(vis_gaps[i])
+       
         comparison = hcat(
             add_label(vcat(*context), "Context"),
+            add_label(vcat(*context_normals), "Context Surface Normal"),
             add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
             add_label(vcat(*rgb_pred), "Target (Prediction)"),
             add_label(vcat(*depth_pred), "Depth (Prediction)"),
+            add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
+            add_label(vcat(*render_normal), "Rendered Normal (Prediction)")
         )
 
         if self.distiller is not None:
