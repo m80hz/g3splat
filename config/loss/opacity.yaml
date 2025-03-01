@@ -1,0 +1,4 @@
+opacity:
+  lambda_opacity: 0.03
+  apply_opacity_after_step: 0
+  threshold: 0.5
