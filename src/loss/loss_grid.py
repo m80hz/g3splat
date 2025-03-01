@@ -92,14 +92,9 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
 
         # Compute loss for each view. Here, we only consider points with valid projection (in [-1,1]) and positive depth.
         def compute_view_loss(proj: Tensor, grid: Tensor, depth: Tensor) -> Tensor:
-            print(f"{proj.shape=}")
-            print(f"{grid.shape=}")
-            print(f"{depth.shape=}")
             valid_mask = ((proj[..., 0] >= -1) & (proj[..., 0] <= 1) &
                           (proj[..., 1] >= -1) & (proj[..., 1] <= 1)).unsqueeze(-1) & (depth > 0)  # (B, N, 1)
             num_valid = valid_mask.float().sum()
-            print(f"{(depth <= 0).sum()=}")
-            print(f"{num_valid=}")
             if num_valid < 100:
                 return torch.tensor(0.0, device=proj.device)
             diff = proj - grid.unsqueeze(0)
