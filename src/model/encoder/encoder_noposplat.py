@@ -203,7 +203,7 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
                 (h, w),
             )
 
-        # surface normal from depths (pointcloud)
+        # surface normal from depths (pointcloud) - for visualisation dump
         # pts_all --> (b, v, (h w), s=1, d=3)
         all_pts_depth = depths.squeeze(-2)
         all_pts_depth = rearrange(all_pts_depth, "b v (h w) d -> (b v) h w d", h=h, w=w)   # (b v) h w 1

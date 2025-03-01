@@ -201,10 +201,13 @@ def render_cuda(
 
         # import matplotlib.pyplot as plt
         # from ...visualization.normal import vis_normal
+        # from ...misc.utils import vis_depth_map
         # surf_normal_img = vis_normal(surf_normal.permute(1, 2, 0).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
         # render_normal_img = vis_normal(render_normal.permute(1, 2, 0).unsqueeze(0)).squeeze(0).detach().cpu().numpy()
-        # plt.imsave(f"surf_normal_img.png", surf_normal_img)
-        # plt.imsave(f"render_normal_img.png", render_normal_img)
+        # surf_depth_img = vis_depth_map(surf_depth).squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
+        # plt.imsave(f"results/surf_normal_img.png", surf_normal_img)
+        # plt.imsave(f"results/render_normal_img.png", render_normal_img)
+        # plt.imsave(f"results/surf_depth_img.png", surf_depth_img)
         
         # from ...geometry.surface_normal import surface_normal_from_depth
         # foc_x = intrinsics[0, 0, 0] * w
@@ -213,8 +216,6 @@ def render_cuda(
         # normal_depth_vis = vis_normal(normal_pts.squeeze(0).permute(1, 2, 0).unsqueeze(0))[0].detach().cpu().numpy()
         # plt.imsave(f"surface_normal_from_surf_depths.png", normal_depth_vis)
         
-        # xx = input("Enter: ")
-
         # # check normal direction: if ray dir and normal angle is smaller than 90, reverse normal
         # means3d = depths_to_points(view_matrix[i], full_projection[i], w, h, surf_depth)
         # cam_center = extrinsics[i, :3, 3].reshape(1, 3)

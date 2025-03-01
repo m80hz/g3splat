@@ -1,17 +1,19 @@
 from .loss import Loss
 from .loss_depth import LossDepth, LossDepthCfgWrapper
 from .loss_normal import LossNormal, LossNormalCfgWrapper
+from .loss_grid import LossGrid, LossGridCfgWrapper
 from .loss_lpips import LossLpips, LossLpipsCfgWrapper
 from .loss_mse import LossMse, LossMseCfgWrapper
 
 LOSSES = {
     LossDepthCfgWrapper: LossDepth,
     LossNormalCfgWrapper: LossNormal,
+    LossGridCfgWrapper: LossGrid,
     LossLpipsCfgWrapper: LossLpips,
     LossMseCfgWrapper: LossMse,
 }
 
-LossCfgWrapper = LossDepthCfgWrapper | LossLpipsCfgWrapper | LossMseCfgWrapper | LossNormalCfgWrapper 
+LossCfgWrapper = LossDepthCfgWrapper | LossLpipsCfgWrapper | LossMseCfgWrapper | LossNormalCfgWrapper | LossGridCfgWrapper 
 
 
 def get_losses(cfgs: list[LossCfgWrapper]) -> list[Loss]:
