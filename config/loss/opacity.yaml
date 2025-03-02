@@ -1,4 +1,7 @@
 opacity:
   lambda_opacity: 0.03
   apply_opacity_after_step: 0
-  threshold: 0.5
+  threshold: 0.7
+  gamma: 5.0              
+  clamp_min: -10.0
+  clamp_max: 10.0
