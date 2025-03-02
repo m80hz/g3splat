@@ -33,4 +33,4 @@ echo "Starting job: $SLURM_JOB_NAME with ID $SLURM_JOB_ID"
 echo "Using TMPDIR: $TMPDIR"
 echo "Nodes allocated: $SLURM_NODELIST"
 
-srun --export=ALL python -m src.main +experiment=re10k_grid wandb.mode=offline
+srun --export=ALL python -m src.main +experiment=exp_config wandb.mode=offline
