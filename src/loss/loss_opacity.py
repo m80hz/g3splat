@@ -44,7 +44,13 @@ class LossOpacity(Loss[LossOpacityCfg, LossOpacityCfgWrapper]):
         
         loss_per_gaussian = torch.clamp(raw_loss, min=0.0)
         
-        total_loss = lambda_opacity * loss_per_gaussian.mean()
+        # Dynamic normalization of the loss by the standard deviation of x, 
+        # to maintain a consistent scale across batches and gradient magnitude stable.
+        norm_factor = torch.std(x) + epsilon
+        normalized_loss = loss_per_gaussian / norm_factor
+        
+        # Average the loss over all Gaussians and scale by lambda_opacity.
+        total_loss = lambda_opacity * normalized_loss.mean()
 
         return total_loss
 
