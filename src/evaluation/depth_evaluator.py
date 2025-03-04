@@ -66,6 +66,7 @@ class DepthEvaluator(LightningModule):
         # if overlap_tag == "ignore":
         #     return
 
+
         visualization_dump = {}
 
         # running encoder to obtain the 3DGS
@@ -75,7 +76,18 @@ class DepthEvaluator(LightningModule):
             visualization_dump=visualization_dump,
         )
        
-        output = self.decoder.forward(
+        # render context views
+        output_context = self.decoder.forward(
+            gaussians,
+            batch["context"]["extrinsics"],
+            batch["context"]["intrinsics"],
+            batch["context"]["near"],
+            batch["context"]["far"],
+            (h, w),
+        )
+
+        # render target views
+        output_target = self.decoder.forward(
             gaussians,
             batch["target"]["extrinsics"],
             batch["target"]["intrinsics"],
@@ -83,9 +95,12 @@ class DepthEvaluator(LightningModule):
             batch["target"]["far"],
             (h, w),
         )
-
-        context_img_rendered = output.color[0]
-        context_depth_rendered = output.depth[0]
+                
+        context_img_rendered = output_context.color[0]
+        context_depth_rendered = output_context.depth[0]
+        
+        target_img_rendered = output_target.color[0]
+        target_depth_rendered = output_target.depth[0]
 
         # direct depth from gaussian means
         gaussian_means = visualization_dump["depth"][0].squeeze()
@@ -97,24 +112,36 @@ class DepthEvaluator(LightningModule):
         context_depth_gt = batch["context"]["depth"][0].squeeze(1)
         context_valid_depth_gt = batch["context"]["valid_depth"][0].squeeze(1)
         
+        target_depth_gt = batch["target"]["depth"][0].squeeze(1)
+        target_valid_depth_gt = batch["target"]["valid_depth"][0].squeeze(1)
+        
         if self.cfg.save_depth_concat_img:
-            fig, ax = plt.subplots(2, 6, figsize=(21, 14))
+            fig, ax = plt.subplots(3, 6, figsize=(32, 21))
 
             # Top row titles
-            ax[0, 0].set_title("GT Image (0)")
+            ax[0, 0].set_title("GT Context Image (0)")
             ax[0, 1].set_title("Rendered Image (0)")
             ax[0, 2].set_title("GT Depth (0)")
             ax[0, 3].set_title("GT Valid Depth (0)")
             ax[0, 4].set_title("GS-Mean Depth (0)")
             ax[0, 5].set_title("Rendered Depth (0)")
 
-            # Bottom row titles
-            ax[1, 0].set_title("GT Image (1)")
+            # Middle row titles
+            ax[1, 0].set_title("GT Context Image (1)")
             ax[1, 1].set_title("Rendered Image (1)")
             ax[1, 2].set_title("GT Depth (1)")
             ax[1, 3].set_title("GT Valid Depth (1)")        
             ax[1, 4].set_title("GS-Mean Depth (1)")
             ax[1, 5].set_title("Rendered Depth (1)")
+
+            # Bottom row titles
+            ax[2, 0].set_title("GT Target Image")
+            ax[2, 1].set_title("Rendered Target Image")
+            ax[2, 2].set_title("GT Target Depth")
+            ax[2, 3].set_title("GT Target Valid Depth")        
+            ax[2, 4].set_title("Target Rendered Depth")
+            ax[2, 5].set_title("Target Rendered Depth")
+
 
             # Top row images
             ax[0, 0].imshow(batch["context"]["image"][0, 0].cpu().permute(1, 2, 0) * 0.5 + 0.5)
@@ -124,7 +151,7 @@ class DepthEvaluator(LightningModule):
             ax[0, 4].imshow(vis_depth_map(context_depth_pointcloud[0]).cpu().permute(1, 2, 0))
             ax[0, 5].imshow(vis_depth_map(context_depth_rendered[0]).cpu().permute(1, 2, 0))
 
-            # Bottom row images
+            # Middle row images
             ax[1, 0].imshow(batch["context"]["image"][0, 1].cpu().permute(1, 2, 0) * 0.5 + 0.5)
             ax[1, 1].imshow(context_img_rendered[1].cpu().permute(1, 2, 0))
             ax[1, 2].imshow(vis_depth_map(context_depth_gt[1]).cpu().permute(1, 2, 0))
@@ -132,23 +159,35 @@ class DepthEvaluator(LightningModule):
             ax[1, 4].imshow(vis_depth_map(context_depth_pointcloud[1]).cpu().permute(1, 2, 0))
             ax[1, 5].imshow(vis_depth_map(context_depth_rendered[1]).cpu().permute(1, 2, 0))
 
+            # Bottom row images
+            ax[2, 0].imshow(batch["target"]["image"][0, 0].cpu().permute(1, 2, 0))
+            ax[2, 1].imshow(target_img_rendered[0].cpu().permute(1, 2, 0))
+            ax[2, 2].imshow(vis_depth_map(target_depth_gt[0]).cpu().permute(1, 2, 0))
+            ax[2, 3].imshow(target_valid_depth_gt[0].cpu(), cmap="grey")
+            ax[2, 4].imshow(vis_depth_map(target_depth_rendered[0]).cpu().permute(1, 2, 0))
+            ax[2, 5].imshow(vis_depth_map(target_depth_rendered[0]).cpu().permute(1, 2, 0))
+
             plt.tight_layout()
             # plt.show()
             plt.savefig(f"depth_eval_{batch_idx}.png")
 
-        
-        # only evaluate on valid gt depth
-        near_value = batch["context"]["near"].view(-1, 1, 1)  # shape (B, 1, 1)
-        far_value  = batch["context"]["far"].view(-1, 1, 1)   # shape (B, 1, 1)
+        # only evaluate on valid depth
+        near_value_ctx = batch["context"]["near"].view(-1, 1, 1)  # shape (B, 1, 1)
+        far_value_ctx  = batch["context"]["far"].view(-1, 1, 1)   # shape (B, 1, 1)
+        near_value_tg = batch["target"]["near"].view(-1, 1, 1)  # shape (B, 1, 1)
+        far_value_tg  = batch["target"]["far"].view(-1, 1, 1)   # shape (B, 1, 1)
         # depth_mask = None
-        depth_mask = (context_depth_gt > near_value) & (context_depth_gt < far_value)
-
-        # --- Context 1 --- The one view we know the pose (Identity)
+        context_depth_mask = (context_depth_gt > near_value_ctx) & (context_depth_gt < far_value_ctx)
+        target_depth_mask = (target_depth_gt > near_value_tg) & (target_depth_gt < far_value_tg)
+        
+       
+        # --- Context 1 --- The one with identity pose
         results_ctx1_rendered, parity_map_ctx1_rendered, pred_full_ctx1_rendered, gt_full_ctx1_rendered = depth_evaluation(
             predicted_depth_original=context_depth_rendered[0:1],
             ground_truth_depth_original=context_depth_gt[0:1],
-            max_depth=far_value[0:1].item(),
-            custom_mask=depth_mask[0:1] if depth_mask is not None else None,
+            max_depth=far_value_ctx[0:1].item(),
+            custom_mask=context_depth_mask[0:1] if context_depth_mask is not None else None,
+            pre_clip_min=near_value_ctx[0:1].item(),
             use_gpu=True,
             align_with_lstsq=False,
             align_with_lad=False,
@@ -161,8 +200,9 @@ class DepthEvaluator(LightningModule):
         results_ctx1_pointcloud, parity_map_ctx1_pointcloud, pred_full_ctx1_pointcloud, gt_full_ctx1_pointcloud = depth_evaluation(
             predicted_depth_original=context_depth_pointcloud[0:1],
             ground_truth_depth_original=context_depth_gt[0:1],
-            max_depth=far_value[0:1].item(),
-            custom_mask=depth_mask[0:1] if depth_mask is not None else None,
+            max_depth=far_value_ctx[0:1].item(),
+            custom_mask=context_depth_mask[0:1] if context_depth_mask is not None else None,
+            pre_clip_min=near_value_ctx[0:1].item(),
             use_gpu=True,
             align_with_lstsq=False,
             align_with_lad=False,
@@ -176,8 +216,9 @@ class DepthEvaluator(LightningModule):
         results_ctx2_rendered, parity_map_ctx2_rendered, pred_full_ctx2_rendered, gt_full_ctx2_rendered = depth_evaluation(
             predicted_depth_original=context_depth_rendered[1:2],
             ground_truth_depth_original=context_depth_gt[1:2],
-            max_depth=far_value[1:2].item(),
-            custom_mask=depth_mask[1:2] if depth_mask is not None else None,
+            max_depth=far_value_ctx[1:2].item(),
+            custom_mask=context_depth_mask[1:2] if context_depth_mask is not None else None,
+            pre_clip_min=near_value_ctx[1:2].item(),
             use_gpu=True,
             align_with_lstsq=False,
             align_with_lad=False,
@@ -190,8 +231,26 @@ class DepthEvaluator(LightningModule):
         results_ctx2_pointcloud, parity_map_ctx2_pointcloud, pred_full_ctx2_pointcloud, gt_full_ctx2_pointcloud = depth_evaluation(
             predicted_depth_original=context_depth_pointcloud[1:2],
             ground_truth_depth_original=context_depth_gt[1:2],
-            max_depth=far_value[1:2].item(),
-            custom_mask=depth_mask[1:2] if depth_mask is not None else None,
+            max_depth=far_value_ctx[1:2].item(),
+            custom_mask=context_depth_mask[1:2] if context_depth_mask is not None else None,
+            pre_clip_min=near_value_ctx[1:2].item(),
+            use_gpu=True,
+            align_with_lstsq=False,
+            align_with_lad=False,
+            align_with_lad2=False,
+            metric_scale=False,
+            align_with_scale=False,
+            disp_input=False
+        )
+        
+        
+        # --- Target Views --- 
+        results_targets_rendered, parity_map_targets_rendered, pred_full_targets_rendered, gt_full_targets_rendered = depth_evaluation(
+            predicted_depth_original=target_depth_rendered,
+            ground_truth_depth_original=target_depth_gt,
+            max_depth=far_value_tg[0:1].item(),
+            custom_mask=target_depth_mask if target_depth_mask is not None else None,
+            pre_clip_min=near_value_tg[0:1].item(),
             use_gpu=True,
             align_with_lstsq=False,
             align_with_lad=False,
@@ -201,7 +260,8 @@ class DepthEvaluator(LightningModule):
             disp_input=False
         )
 
-        # Now, each call returns a "results" dictionary (with keys such as "Abs Rel", "Sq Rel", etc.).
+        
+        # Each call returns a "results" dictionary (with keys such as "Abs Rel", "Sq Rel", etc.).
         # For convenience, define error names in the order used by depth_evaluation:
         error_names = ['Abs Rel', 'Sq Rel', 'RMSE', 'Log RMSE', 'δ < 1.', 'δ < 1.25', 'δ < 1.25^2', 'δ < 1.25^3']
 
@@ -211,11 +271,14 @@ class DepthEvaluator(LightningModule):
         metrics_ctx2_rendered = { f"context2_rendered_{name.replace(' ', '_')}": results_ctx2_rendered[name] for name in error_names }
         metrics_ctx2_pointcloud = { f"context2_pointcloud_{name.replace(' ', '_')}": results_ctx2_pointcloud[name] for name in error_names }
 
+        metrics_targets_rendered = { f"targets_rendered_{name.replace(' ', '_')}": results_targets_rendered[name] for name in error_names }
+
         # Now update your running metrics
         self.print_preview_depth_metrics(metrics_ctx1_rendered, sub_tag="context1_rendered")
         self.print_preview_depth_metrics(metrics_ctx1_pointcloud, sub_tag="context1_pointcloud")
         self.print_preview_depth_metrics(metrics_ctx2_rendered, sub_tag="context2_rendered")
         self.print_preview_depth_metrics(metrics_ctx2_pointcloud, sub_tag="context2_pointcloud")
+        self.print_preview_depth_metrics(metrics_targets_rendered, sub_tag="targets")
 
         return 0
 
@@ -268,8 +331,6 @@ class DepthEvaluator(LightningModule):
     def on_test_end(self) -> None:
         """
         Called at the end of testing to summarize depth metrics over all test samples.
-        Prints and saves subgroup depth metrics (per context) and then computes overall averages 
-        for rendered and pointcloud predictions separately (averaged over contexts).
         """
         import numpy as np
         from tabulate import tabulate
@@ -294,9 +355,11 @@ class DepthEvaluator(LightningModule):
         # Gather subgroup keys for each category.
         rendered_keys = [tag for tag in self.all_depth_metrics_sub.keys() if "rendered" in tag.lower()]
         pointcloud_keys = [tag for tag in self.all_depth_metrics_sub.keys() if "pointcloud" in tag.lower()]
+        targets_keys = [tag for tag in self.all_depth_metrics_sub.keys() if "targets" in tag.lower()]
         
         overall_rendered = {}
         overall_pointcloud = {}
+        overall_targets = {}
         
         # For each error metric, combine values from all rendered subgroups.
         for err in error_names:
@@ -319,6 +382,16 @@ class DepthEvaluator(LightningModule):
             if pointcloud_vals:
                 overall_pointcloud[err] = np.mean(pointcloud_vals)
         
+        # For targets subgroups.
+        for err in error_names:
+            targets_vals = []
+            for tag in targets_keys:
+                for key, vals in self.all_depth_metrics_sub[tag].items():
+                    if key.lower().endswith(err.lower()):
+                        targets_vals.extend(vals)
+            if targets_vals:
+                overall_targets[err] = np.mean(targets_vals)
+        
         # Print overall rendered metrics.
         if overall_rendered:
             print("Overall Rendered Depth Metrics (averaged over all context subgroups):")
@@ -336,3 +409,11 @@ class DepthEvaluator(LightningModule):
             np.save("overall_depth_metrics_pointcloud.npy", overall_pointcloud)
         else:
             print("No pointcloud depth subgroup metrics recorded.")
+
+        if overall_targets:
+            print("Overall Target Depth Metrics (averaged over all target subgroups):")
+            print(tabulate([[k, f"{v:.3f}"] for k, v in overall_targets.items()],
+                        headers=["Metric", "Value"]))
+            np.save("overall_depth_metrics_targets.npy", overall_targets)
+        else:
+            print("No targets depth subgroup metrics recorded.")

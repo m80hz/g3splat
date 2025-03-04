@@ -180,5 +180,6 @@ slurm-*.out
 table.tex
 /baselines
 /test/*
+*.npy
 
 submodules/

@@ -2,7 +2,7 @@ defaults:
   - base_dataset
   - view_sampler: bounded
 
-name: scannet_pose
+name: scannet_depth
 roots: [datasets/scannetv1_test]
 # roots: [datasets/scannet1500_test]
 make_baseline_1: true
