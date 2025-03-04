@@ -1,8 +1,8 @@
 normal:
   lambda_normal: 0.05
-  lambda_distortion: 100.0
-  apply_normal_after_step: 8000
-  apply_distortion_after_step: 4000
+  lambda_distortion: 0.0
+  apply_normal_after_step: 0
+  apply_distortion_after_step: 0
 
   valid_threshold: 0.1
   depth_valid_threshold: 1e-3

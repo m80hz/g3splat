@@ -46,8 +46,8 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
 
         eps = 1e-6  # small constant for numerical stability
 
-        depth = rearrange(prediction.depth, "b v h w -> (b v) h w")                        # (B, H, W)
-        surf_normal = rearrange(prediction.surf_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (depth-derived normals)
+        depth = rearrange(prediction.depth, "b v h w -> (b v) h w").detach()                        # (B, H, W)
+        surf_normal = rearrange(prediction.surf_normal, "b v c h w -> (b v) c h w").detach()        # (B, 3, H, W)   (depth-derived normals)
         rend_normal = rearrange(prediction.rend_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (rendered normals)
         rend_dist = rearrange(prediction.dist, "b v h w -> (b v) h w")                     # (B, H, W)   (depth distortion)        
         
@@ -83,12 +83,10 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         depth_norm = (depth - depth_median) / (depth_std + eps)  # (B, H, W)
 
         # Compute spatial gradients of the normalized depth using finite differences.
-        # Horizontal gradient.
         grad_x = torch.abs(depth_norm[:, :, 1:] - depth_norm[:, :, :-1])
-        grad_x = F.pad(grad_x, (0, 1), mode='replicate')  # pad to get shape (B, H, W)
-        # Vertical gradient.
+        grad_x = F.pad(grad_x, (0, 1), mode='replicate')  
         grad_y = torch.abs(depth_norm[:, 1:, :] - depth_norm[:, :-1, :])
-        grad_y = F.pad(grad_y, (0, 0, 0, 1), mode='replicate')  # shape (B, H, W)
+        grad_y = F.pad(grad_y, (0, 0, 0, 1), mode='replicate')
 
         # Compute gradient magnitude.
         grad_mag = torch.sqrt(grad_x ** 2 + grad_y ** 2)  # (B, H, W)
@@ -103,9 +101,12 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         soft_mask = 1.0 / (1.0 + torch.exp((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope))    # soft_mask: shape (B, H, W)
         
         # Incorporate the soft mask into the overall validity mask.
-        # final_valid_mask = valid_mask * soft_mask.unsqueeze(1)  # (B, 1, H, W)
-        final_valid_mask = valid_mask
-        
+        final_valid_mask = valid_mask * soft_mask.unsqueeze(1)  # (B, 1, H, W)
+        # Check if the number of valid pixels is below a threshold (e.g., 100 pixels).
+        if final_valid_mask.sum().item() < 100:
+            return torch.tensor(0.0, device=prediction.depth.device)
+
+    
         # -------------------------------
         # 4. Compute Robust Angular Loss
         # -------------------------------
@@ -140,31 +141,3 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         total_loss = total_normal_loss + dist_loss
         
         return total_loss
-
-
-    # from ..misc.utils import inspect_depth_tensor, vis_depth_map
-    # import matplotlib.pyplot as plt
-    # fig, ax = plt.subplots(2, 6, figsize=(21, 14))
-    # # Top row titles
-    # ax[0, 0].set_title("Context Image")
-    # ax[0, 1].set_title("Target")
-    # ax[0, 2].set_title("Rendered Depth")
-    # ax[0, 3].set_title("Rendered Normal")
-    # ax[0, 4].set_title("Surface Normal")
-    # ax[0, 5].set_title("Valid Mask")
-    # ax[0, 0].imshow(batch["context"]["image"][0, 0].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
-    # ax[1, 0].imshow(batch["context"]["image"][0, 1].detach().cpu().permute(1, 2, 0) * 0.5 + 0.5)
-    # ax[0, 1].imshow(batch["target"]["image"][0, 0].detach().cpu().permute(1, 2, 0))
-    # ax[1, 1].imshow(batch["target"]["image"][0, 1].detach().cpu().permute(1, 2, 0))
-    # ax[0, 2].imshow(vis_depth_map(depth[0, 0]).detach().cpu().permute(1, 2, 0), cmap='grey')
-    # ax[1, 2].imshow(vis_depth_map(depth[0, 1]).detach().cpu().permute(1, 2, 0), cmap='grey')
-    # ax[0, 3].imshow(prediction.rend_normal[0, 0].detach().cpu().permute(1, 2, 0))
-    # ax[1, 3].imshow(prediction.rend_normal[0, 1].detach().cpu().permute(1, 2, 0))
-    # ax[0, 4].imshow(prediction.surf_normal[0, 0].detach().cpu().permute(1, 2, 0))
-    # ax[1, 4].imshow(prediction.surf_normal[0, 1].detach().cpu().permute(1, 2, 0))
-    # ax[0, 5].imshow(valid_mask[0, 0].detach().cpu(), cmap='grey')
-    # ax[1, 5].imshow(valid_mask[0, 1].detach().cpu(), cmap='grey')
-    # plt.tight_layout()
-    # # plt.show()
-    # plt.savefig(f"normal_eval_{global_step}.png")
-            
