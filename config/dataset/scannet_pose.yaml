@@ -4,7 +4,7 @@ defaults:
 
 name: scannet_pose
 roots: [datasets/scannetv1_test]
-# roots: [datasets/scannet1500_test]
+context_pair_file: scannet_test_pairs.txt
 make_baseline_1: true
 augment: true
 

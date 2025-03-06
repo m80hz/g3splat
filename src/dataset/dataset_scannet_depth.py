@@ -1,22 +1,19 @@
 import json
 import os
 import os.path as osp
-
 from dataclasses import dataclass
 from functools import cached_property
-from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import torch
 import torchvision.transforms as tf
-import numpy as np
-from einops import rearrange, repeat
-from jaxtyping import Float, UInt8
+from einops import repeat
+from jaxtyping import Float
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import IterableDataset
-from torch.distributed import get_rank, get_world_size
 
 from ..geometry.projection import get_fov
 from .dataset import DatasetCfgCommon
@@ -36,6 +33,8 @@ class DatasetScannetDepthCfg(DatasetCfgCommon):
     make_baseline_1: bool
     augment: bool
     skip_bad_shape: bool
+    context_pair_file: str
+    num_target_views: int
 
 
 @dataclass
@@ -49,7 +48,6 @@ class DatasetScannetDepth(IterableDataset):
     view_sampler: ViewSampler
 
     to_tensor: tf.ToTensor
-    chunks: list[Path]
     near: float = 0.5
     far: float = 10.0
 
@@ -64,44 +62,95 @@ class DatasetScannetDepth(IterableDataset):
         self.stage = stage
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
-
-        # Collect data.
         self.data_root = cfg.roots[0]
+
 
         # List scene directories (names starting with "scene")
         self.scenes = sorted([
             os.path.join(self.data_root, d)
             for d in os.listdir(self.data_root)
-            if os.path.isdir(os.path.join(self.data_root, d)) and d.startswith("scene")
+            if osp.isdir(osp.join(self.data_root, d)) and d.startswith("scene")
         ])
-        
+
+        # Load context pairs from the provided text file.
+        # Each line is expected to have: scene_name context1 context2
+        context_pair_file_path = os.path.join(self.data_root, self.cfg.context_pair_file)
+        self.context_pairs = {}
+        with open(context_pair_file_path, "r") as f:
+            for line in f:
+                if line.strip():
+                    parts = line.strip().split()
+                    scene = parts[0]
+                    try:
+                        c1 = int(parts[1])
+                        c2 = int(parts[2])
+                    except ValueError:
+                        continue
+                    # Ensure c1 is the smaller one.
+                    if c1 > c2:
+                        c1, c2 = c2, c1
+                    if scene not in self.context_pairs:
+                        self.context_pairs[scene] = []
+                    self.context_pairs[scene].append((c1, c2))
+
+        # Build evaluation indices as a list of examples.
+        # Each example is a dict with "scene", "context": [c1, c2], and "target": [target indices]
+        self.eval_indices = []
+        for scene_path in self.scenes:
+            scene_name = osp.basename(scene_path)
+            if scene_name not in self.context_pairs:
+                continue  # No context pairs for this scene.
+            # List available image indices in the color folder.
+            color_dir = osp.join(scene_path, "color")
+            files = [f for f in os.listdir(color_dir) if f.endswith(".jpg")]
+            available = []
+            for f in files:
+                base = osp.splitext(f)[0]
+                try:
+                    available.append(int(base))
+                except ValueError:
+                    continue
+            available = sorted(available)
+            # For each context pair for the scene:
+            for (c1, c2) in self.context_pairs[scene_name]:
+                if c1 not in available or c2 not in available:
+                    print(f"Skipping {scene_name} pair ({c1}, {c2}): not found in available images.")
+                    continue
+                # Candidate target indices are those strictly between c1 and c2.
+                candidates = [idx for idx in available if c1 < idx < c2]
+                if len(candidates) < self.cfg.num_target_views:
+                    print(f"Skipping {scene_name} pair ({c1}, {c2}): only {len(candidates)} candidates (need at least {self.cfg.num_target_views}).")
+                    continue
+                # Uniformly select target indices.
+                linspace = np.linspace(0, len(candidates) - 1, self.cfg.num_target_views)
+                target_idxs = [candidates[int(round(i))] for i in linspace]
+                self.eval_indices.append({
+                    "scene": scene_name,
+                    "context": [c1, c2],
+                    "target": target_idxs
+                })
+                
+        print(f"Total examples in eval_indices: {len(self.eval_indices)}")
+
+        # Save the evaluation indices as a JSON file.
+        eval_index_file = osp.join("evaluation_index_scannetv1.json")
+        with open(eval_index_file, "w") as f:
+            json.dump(self.eval_indices, f, indent=4)
+        print(f"Saved evaluation indices to {eval_index_file}")
+
     def load_intrinsics(self, scene_path, modality="color"):
-        """
-        Load intrinsic parameters from the scene's intrinsic folder.
-        Expects a file named "intrinsic_color.txt" or "intrinsic_depth.txt".
-        """
-        intrinsic_file = os.path.join(scene_path, "intrinsic", f"intrinsic_{modality}.txt")
+        intrinsic_file = osp.join(scene_path, "intrinsic", f"intrinsic_{modality}.txt")
         with open(intrinsic_file, "r") as f:
             lines = f.readlines()
         K = np.stack([np.array([float(i) for i in r.split()]) for r in lines if r.strip() != ""])
         return K  # Expected shape (4,4)
 
     def load_pose(self, scene_path, index):
-        """Load the pose (extrinsics) for a given image index as a 4x4 matrix from the pose folder."""
-        pose_file = os.path.join(scene_path, "pose", f"{index}.txt")
+        pose_file = osp.join(scene_path, "pose", f"{index}.txt")
         pose = np.loadtxt(pose_file)
         return pose
 
-    def shuffle(self, lst: list) -> list:
-        indices = torch.randperm(len(lst))
-        return [lst[x] for x in indices]
-    
     def center_principal_point(self, image, cx, cy, h, w):
-        """
-        Shift the image (a tensor of shape (N, C, H, W)) so that the principal point (cx, cy)
-        is centered in the output image.
-        Returns the shifted image and the new principal point coordinates.
-        """
         cx = round(cx)
         cy = round(cy)
         center_x, center_y = w // 2, h // 2
@@ -125,10 +174,6 @@ class DatasetScannetDepth(IterableDataset):
         return new_image, new_cx, new_cy
 
     def center_principal_point_depth(self, depth, cx, cy, h, w):
-        """
-        Similar to center_principal_point but for depth maps.
-        Expects depth tensor of shape (N, 1, H, W).
-        """
         cx = round(cx)
         cy = round(cy)
         center_x, center_y = w // 2, h // 2
@@ -151,194 +196,146 @@ class DatasetScannetDepth(IterableDataset):
         new_cy = new_h // 2
         return new_depth, new_cx, new_cy
 
+    def get_bound(self, bound: Literal["near", "far"], num_views: int) -> Float[Tensor, " view"]:
+        value = torch.tensor(getattr(self, bound), dtype=torch.float32)
+        return repeat(value, "-> v", v=num_views)
+
+    def convert_images(self, images) -> Float[Tensor, "batch 3 height width"]:
+        torch_images = []
+        for image in images:
+            img = Image.open(image).convert("RGB")
+            torch_images.append(self.to_tensor(img))
+        return torch.stack(torch_images)
+
+    def convert_depths(self, depths) -> Float[Tensor, "batch 1 height width"]:
+        torch_depths = []
+        for depth in depths:
+            d = np.array(Image.open(depth)).astype(np.float32) / 1000.0
+            d[~np.isfinite(d)] = 0
+            d = Image.fromarray(d)
+            torch_depths.append(self.to_tensor(d))
+        return torch.stack(torch_depths)
 
     def __iter__(self):
-        # Loop over each scene.
-        for scene_path in self.scenes:
-            scene_name = os.path.basename(scene_path)
-            color_dir = os.path.join(scene_path, "color")
-            # Extract image indices from filenames (e.g., "105.jpg")
-            files = [f for f in os.listdir(color_dir) if f.endswith(".jpg")]
-            indices = []
-            for f in files:
-                base = os.path.splitext(f)[0]
-                try:
-                    num = int(base)
-                    indices.append(num)
-                except ValueError:
-                    continue
-            indices = sorted(indices)
-            if len(indices) < 5:
-                print(f"Skipping {scene_name}: only {len(indices)} images (need at least 5).")
-                continue
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is not None:
+            # Divide the dataset among workers
+            total_examples = len(self.eval_indices)
+            per_worker = int(np.ceil(total_examples / worker_info.num_workers))
+            worker_id = worker_info.id
+            start = worker_id * per_worker
+            end = min(start + per_worker, total_examples)
+            eval_indices = self.eval_indices[start:end]
+        else:
+            eval_indices = self.eval_indices
 
+        # Now iterate over each example in the evaluation indices list.
+        for example_dict in eval_indices:
+            scene_name = example_dict["scene"]
+            context_indices = example_dict["context"]  # e.g. [346, 350]
+            target_indices = example_dict["target"]      # uniformly chosen targets
 
-            # Load intrinsic parameters for color and depth (original copies).
-            K_color_orig = self.load_intrinsics(scene_path, modality="color")  # shape (4,4)
-            K_depth_orig = self.load_intrinsics(scene_path, modality="depth")  # shape (4,4)
+            scene_path = osp.join(self.data_root, scene_name)
+            color_dir = osp.join(scene_path, "color")
+            depth_dir = osp.join(scene_path, "depth")
+            context_color_files = [osp.join(scene_path, "color", f"{idx}.jpg") for idx in context_indices]
+            target_color_files = [osp.join(scene_path, "color", f"{idx}.jpg") for idx in target_indices]
+            context_depth_files = [osp.join(scene_path, "depth", f"{idx}.png") for idx in context_indices]
+            target_depth_files = [osp.join(scene_path, "depth", f"{idx}.png") for idx in target_indices]
 
-            # Create separate copies for context and target.
+            context_images = self.convert_images(context_color_files)  # (2, 3, H, W)
+            target_images = self.convert_images(target_color_files)    # (num_target, 3, H, W)
+            context_depths = self.convert_depths(context_depth_files)    # (2, 1, H_d, W_d)
+            target_depths = self.convert_depths(target_depth_files)      # (num_target, 1, H_d, W_d)
+
+            context_pose = [self.load_pose(scene_path, idx) for idx in context_indices]
+            target_pose = [self.load_pose(scene_path, idx) for idx in target_indices]
+            context_pose = torch.tensor(context_pose, dtype=torch.float32)  # (2, 4, 4)
+            target_pose = torch.tensor(target_pose, dtype=torch.float32)    # (num_target, 4, 4)
+
+            # Process intrinsics separately for context and target.
+            K_color_orig = self.load_intrinsics(scene_path, modality="color")  # (4,4)
+            K_depth_orig = self.load_intrinsics(scene_path, modality="depth")  # (4,4)
             K_color_context = K_color_orig.copy()
             K_color_target  = K_color_orig.copy()
             K_depth_context = K_depth_orig.copy()
             K_depth_target  = K_depth_orig.copy()
 
-            # Generate 3 examples per scene using a sliding window of 5 consecutive images.
-            num_examples = 3
-            max_start = len(indices) - 5
-            starts = np.linspace(0, max_start, num=num_examples, dtype=int)
+            h_ctx, w_ctx = context_images.shape[-2:]
+            context_images, new_cx_ctx, new_cy_ctx = self.center_principal_point(
+                context_images, K_color_context[0, 2], K_color_context[1, 2], h_ctx, w_ctx)
+            K_color_context[0, 2] = new_cx_ctx
+            K_color_context[1, 2] = new_cy_ctx
 
-            for start in starts:
-                window_indices = indices[start: start + 5]
-                # For each window: use the middle two as context and one before plus two after as targets.
-                context_indices = window_indices[1:3]       # 2 images
-                target_indices = [window_indices[0], window_indices[3], window_indices[4]]  # 3 images
+            h_t, w_t = target_images.shape[-2:]
+            target_images, new_cx_t, new_cy_t = self.center_principal_point(
+                target_images, K_color_target[0, 2], K_color_target[1, 2], h_t, w_t)
+            K_color_target[0, 2] = new_cx_t
+            K_color_target[1, 2] = new_cy_t
 
-                # Build file paths.
-                context_color_files = [os.path.join(scene_path, "color", f"{idx}.jpg") for idx in context_indices]
-                target_color_files = [os.path.join(scene_path, "color", f"{idx}.jpg") for idx in target_indices]
-                context_depth_files = [os.path.join(scene_path, "depth", f"{idx}.png") for idx in context_indices]
-                target_depth_files = [os.path.join(scene_path, "depth", f"{idx}.png") for idx in target_indices]
+            h_d_ctx, w_d_ctx = context_depths.shape[-2:]
+            context_depths, new_cx_d_ctx, new_cy_d_ctx = self.center_principal_point_depth(
+                context_depths, K_depth_context[0, 2], K_depth_context[1, 2], h_d_ctx, w_d_ctx)
+            K_depth_context[0, 2] = new_cx_d_ctx
+            K_depth_context[1, 2] = new_cy_d_ctx
 
-                # Load color and depth data.
-                context_images = self.convert_images(context_color_files)   # (2, 3, H, W)
-                target_images = self.convert_images(target_color_files)     # (3, 3, H, W)
-                context_depths = self.convert_depths(context_depth_files)     # (2, 1, H_d, W_d)
-                target_depths = self.convert_depths(target_depth_files)       # (3, 1, H_d, W_d)
+            h_d_t, w_d_t = target_depths.shape[-2:]
+            target_depths, new_cx_d_t, new_cy_d_t = self.center_principal_point_depth(
+                target_depths, K_depth_target[0, 2], K_depth_target[1, 2], h_d_t, w_d_t)
+            K_depth_target[0, 2] = new_cx_d_t
+            K_depth_target[1, 2] = new_cy_d_t
 
-                # Load poses.
-                context_pose = [self.load_pose(scene_path, idx) for idx in context_indices]
-                target_pose = [self.load_pose(scene_path, idx) for idx in target_indices]
-                context_pose = torch.tensor(context_pose, dtype=torch.float32)  # (2, 4, 4)
-                target_pose = torch.tensor(target_pose, dtype=torch.float32)    # (3, 4, 4)
+            context_valid_depths = (context_depths > 0).type(torch.float32)
+            target_valid_depths = (target_depths > 0).type(torch.float32)
 
-                # --- Process color intrinsics and images separately ---
-                # For context images:
-                h_ctx, w_ctx = context_images.shape[-2:]
-                context_images, new_cx_ctx, new_cy_ctx = self.center_principal_point(context_images,
-                                                                                     K_color_context[0, 2],
-                                                                                     K_color_context[1, 2],
-                                                                                     h_ctx, w_ctx)
-                K_color_context[0, 2] = new_cx_ctx
-                K_color_context[1, 2] = new_cy_ctx
+            # Transform poses so that the first context becomes the world frame.
+            first_context_pose = context_pose[0]
+            C0_inv = torch.inverse(first_context_pose)
+            new_context_pose = torch.stack([C0_inv @ p for p in context_pose], dim=0)
+            new_target_pose = torch.stack([C0_inv @ p for p in target_pose], dim=0)
 
-                # For target images:
-                h_t, w_t = target_images.shape[-2:]
-                target_images, new_cx_t, new_cy_t = self.center_principal_point(target_images,
-                                                                                 K_color_target[0, 2],
-                                                                                 K_color_target[1, 2],
-                                                                                 h_t, w_t)
-                K_color_target[0, 2] = new_cx_t
-                K_color_target[1, 2] = new_cy_t
+            K_norm_ctx = K_color_context.copy()[:3, :3]
+            K_norm_ctx[0, :3] /= w_ctx
+            K_norm_ctx[1, :3] /= h_ctx
+            intrinsics_context = torch.tensor(K_norm_ctx, dtype=torch.float32).unsqueeze(0).repeat(2, 1, 1)
+            K_norm_t = K_color_target.copy()[:3, :3]
+            K_norm_t[0, :3] /= w_t
+            K_norm_t[1, :3] /= h_t
+            intrinsics_target = torch.tensor(K_norm_t, dtype=torch.float32).unsqueeze(0).repeat(len(target_indices), 1, 1)
 
-                # --- Process depth intrinsics and depths separately ---
-                h_d_ctx, w_d_ctx = context_depths.shape[-2:]
-                context_depths, new_cx_d_ctx, new_cy_d_ctx = self.center_principal_point_depth(context_depths,
-                                                                                                K_depth_context[0, 2],
-                                                                                                K_depth_context[1, 2],
-                                                                                                h_d_ctx, w_d_ctx)
-                K_depth_context[0, 2] = new_cx_d_ctx
-                K_depth_context[1, 2] = new_cy_d_ctx
+            overlap = torch.tensor([0.5], dtype=torch.float32)
+            scale = torch.tensor([1.0], dtype=torch.float32)
+            context_idx_tensor = torch.tensor([0, 1], dtype=torch.int64)
+            target_idx_tensor = torch.tensor(list(range(len(target_indices))), dtype=torch.int64)
 
-                h_d_t, w_d_t = target_depths.shape[-2:]
-                target_depths, new_cx_d_t, new_cy_d_t = self.center_principal_point_depth(target_depths,
-                                                                                           K_depth_target[0, 2],
-                                                                                           K_depth_target[1, 2],
-                                                                                           h_d_t, w_d_t)
-                K_depth_target[0, 2] = new_cx_d_t
-                K_depth_target[1, 2] = new_cy_d_t
-              
-                # Compute valid depth masks.
-                context_valid_depths = (context_depths > 0).type(torch.float32)
-                target_valid_depths = (target_depths > 0).type(torch.float32)
+            example = {
+                "context": {
+                    "extrinsics": new_context_pose,
+                    "intrinsics": intrinsics_context,
+                    "image": context_images,
+                    "depth": context_depths,
+                    "valid_depth": context_valid_depths,
+                    "near": self.get_bound("near", 2),
+                    "far": self.get_bound("far", 2),
+                    "index": context_idx_tensor,
+                    "overlap": overlap,
+                    "scale": scale,
+                },
+                "target": {
+                    "extrinsics": new_target_pose,
+                    "intrinsics": intrinsics_target,
+                    "image": target_images,
+                    "depth": target_depths,
+                    "valid_depth": target_valid_depths,
+                    "near": self.get_bound("near", len(target_indices)),
+                    "far": self.get_bound("far", len(target_indices)),
+                    "index": target_idx_tensor,
+                },
+                "scene": scene_name,
+            }
 
-            
-                # --- Transform poses so that the first context view becomes the world frame ---
-                first_context_pose = context_pose[0]
-                C0_inv = torch.inverse(first_context_pose)
-                new_context_pose = torch.stack([C0_inv @ p for p in context_pose], dim=0)
-                new_target_pose = torch.stack([C0_inv @ p for p in target_pose], dim=0)
-                
-                # --- Normalize intrinsics ---
-                # Normalize using the context image dimensions for context intrinsics,
-                # and target image dimensions for target intrinsics.
-                K_norm_ctx = K_color_context.copy()
-                K_norm_ctx = K_norm_ctx[:3, :3]
-                K_norm_ctx[0, :3] /= w_ctx
-                K_norm_ctx[1, :3] /= h_ctx
-                intrinsics_context = torch.tensor(K_norm_ctx, dtype=torch.float32).unsqueeze(0).repeat(2, 1, 1)
-
-                K_norm_t = K_color_target.copy()
-                K_norm_t = K_norm_t[:3, :3]
-                K_norm_t[0, :3] /= w_t
-                K_norm_t[1, :3] /= h_t
-                intrinsics_target = torch.tensor(K_norm_t, dtype=torch.float32).unsqueeze(0).repeat(3, 1, 1)
-
-                # --- Additional parameters ---
-                overlap = torch.tensor([0.5], dtype=torch.float32)
-                scale = torch.tensor([1.0], dtype=torch.float32)
-                context_idx_tensor = torch.tensor([0, 1], dtype=torch.int64)
-                target_idx_tensor = torch.tensor([0, 1, 2], dtype=torch.int64)
-
-                # --- Build final example ---
-                example = {
-                    "context": {
-                        "extrinsics": new_context_pose,        # (2, 4, 4)
-                        "intrinsics": intrinsics_context,      # (2, 3, 3)
-                        "image": context_images,               # (2, 3, H, W)
-                        "depth": context_depths,               # (2, 1, H_d, W_d)
-                        "valid_depth": context_valid_depths,   # (2, 1, H_d, W_d)
-                        "near": self.get_bound("near", 2),
-                        "far": self.get_bound("far", 2),
-                        "index": context_idx_tensor,
-                        "overlap": overlap,
-                        "scale": scale,
-                    },
-                    "target": {
-                        "extrinsics": new_target_pose,           # (3, 4, 4)
-                        "intrinsics": intrinsics_target,         # (3, 3, 3)
-                        "image": target_images,                  # (3, 3, H, W)
-                        "depth": target_depths,                  # (3, 1, H_d, W_d)
-                        "valid_depth": target_valid_depths,      # (3, 1, H_d, W_d)
-                        "near": self.get_bound("near", 3),
-                        "far": self.get_bound("far", 3),
-                        "index": target_idx_tensor,
-                    },
-                    "scene": scene_name,
-                }
-
-                example = apply_crop_shim(example, tuple(self.cfg.input_image_shape))
-                yield example
-
-
-    def convert_images(
-        self,
-        images,
-    ) -> Float[Tensor, "batch 3 height width"]:
-        torch_images = []
-        for image in images:
-            image = Image.open(image)
-            torch_images.append(self.to_tensor(image))
-        return torch.stack(torch_images)
-
-    def convert_depths(
-        self,
-        depths,
-    ) -> Float[Tensor, "batch 1 height width"]:
-        torch_depths = []
-        for depth in depths:
-            depth = np.array(Image.open(depth)).astype(np.float32) / 1000.0
-            depth[~np.isfinite(depth)] = 0  # invalid
-            torch_depths.append(self.to_tensor(depth))
-        return torch.stack(torch_depths)
-
-    def get_bound(
-        self,
-        bound: Literal["near", "far"],
-        num_views: int,
-    ) -> Float[Tensor, " view"]:
-        value = torch.tensor(getattr(self, bound), dtype=torch.float32)
-        return repeat(value, "-> v", v=num_views)
+            example = apply_crop_shim(example, tuple(self.cfg.input_image_shape))
+            yield example
 
     @property
     def data_stage(self) -> Stage:
