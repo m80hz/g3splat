@@ -1,13 +1,13 @@
 # @package _global_
 
 defaults:
-  - /dataset@_group_.scannet_pose: scannet
+  - /dataset@_group_.scannet_pose: scannet_pose
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
   - override /loss: [mse, lpips]
 
 wandb:
-  name: re10k_scannet_2dgs
+  name: re10k_scannet_2dgs_pose
   tags: [re10k_2dgs, 256x256]
 
 model:

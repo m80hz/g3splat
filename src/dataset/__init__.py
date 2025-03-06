@@ -3,6 +3,7 @@ from dataclasses import fields
 from torch.utils.data import Dataset
 
 from .dataset_scannet_pose import DatasetScannetPose, DatasetScannetPoseCfgWrapper
+from .dataset_scannet_depth import DatasetScannetDepth, DatasetScannetDepthCfgWrapper
 from ..misc.step_tracker import StepTracker
 from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg, DatasetRE10kCfgWrapper, DatasetDL3DVCfgWrapper, \
     DatasetScannetppCfgWrapper
@@ -14,10 +15,11 @@ DATASETS: dict[str, Dataset] = {
     "dl3dv": DatasetRE10k,
     "scannetpp": DatasetRE10k,
     "scannet_pose": DatasetScannetPose,
+    "scannet_depth": DatasetScannetDepth,
 }
 
 
-DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetScannetPoseCfgWrapper
+DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetScannetPoseCfgWrapper | DatasetScannetDepthCfgWrapper
 DatasetCfg = DatasetRE10kCfg
 
 

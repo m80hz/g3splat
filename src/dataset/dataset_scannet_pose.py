@@ -37,6 +37,7 @@ class DatasetScannetPoseCfg(DatasetCfgCommon):
     augment: bool
     relative_pose: bool
     skip_bad_shape: bool
+    context_pair_file: str
 
 
 @dataclass
@@ -51,8 +52,8 @@ class DatasetScannetPose(IterableDataset):
 
     to_tensor: tf.ToTensor
     chunks: list[Path]
-    near: float = 0.5
-    far: float = 10.0
+    near: float = 0.1
+    far: float = 100.0
 
     def __init__(
         self,
@@ -69,7 +70,7 @@ class DatasetScannetPose(IterableDataset):
         # Collect data.
         self.data_root = cfg.roots[0]
         # following BA-Net's splits
-        pair_file = os.path.join(cfg.roots[0], "scannet_test_pairs.txt")
+        pair_file = os.path.join(cfg.roots[0], self.cfg.context_pair_file)
         # Load the text file; each row is [scene_name, image1, image2]
         data_pairs = np.loadtxt(pair_file, delimiter=" ", dtype=str)
         
