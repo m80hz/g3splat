@@ -10,17 +10,44 @@ def inverse_normalize(tensor, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)):
 
 
 # Color-map the result.
-def vis_depth_map(result):
-    far = result.view(-1)[:16_000_000].quantile(0.99).log()
-    try:
-        near = result[result > 0][:16_000_000].quantile(0.01).log()
-    except:
-        print("No valid depth values found.")
-        near = torch.zeros_like(far)
-    result = result.log()
-    result = 1 - (result - near) / (far - near)
-    return apply_color_map_to_image(result, "turbo")
+def vis_scalar_map(result, norm_min=0.0, norm_max=1.0, colormap="bwr"):
+    # Normalize using the provided constant values.
+    normalized = (result - norm_min) / (norm_max - norm_min)
+    normalized = normalized.clamp(0, 1)
+    return apply_color_map_to_image(normalized, colormap)
 
+
+def vis_depth_map(result, norm_min=None, norm_max=None, colormap="turbo"):
+    """
+    Color-map the depth map result with constant normalization.
+    
+    Args:
+        result (torch.Tensor): Input tensor of shape [B, H, W] (or [H, W]) with scalar values.
+        norm_min (float, optional): Constant value (after log-transform) for the minimum.
+        norm_max (float, optional): Constant value (after log-transform) for the maximum.
+        colormap (str): Matplotlib colormap to use. Default "bwr" maps low values to blue and high values to red.
+    
+    Returns:
+        torch.Tensor: A color-mapped image tensor (float in [0, 1] with shape [B, H, W, 3]).
+    """
+    # Apply log-transform to the input values.
+    result_log = result.log()
+    
+    if norm_min is None or norm_max is None:
+        # Fallback: compute quantiles per image.
+        far = result.view(-1)[:16_000_000].quantile(0.99).log()
+        try:
+            near = result[result > 0][:16_000_000].quantile(0.01).log()
+        except Exception as e:
+            print("No valid depth values found.", e)
+            near = torch.zeros_like(far)
+        norm_min = near
+        norm_max = far
+
+    # Normalize using constant values.
+    normalized = 1 - (result_log - norm_min) / (norm_max - norm_min)
+    
+    return apply_color_map_to_image(normalized, colormap)
 
 def confidence_map(result):
     # far = result.view(-1)[:16_000_000].quantile(0.99).log()

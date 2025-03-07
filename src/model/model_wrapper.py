@@ -26,7 +26,7 @@ from ..misc.image_io import prep_image, save_image, save_video
 from ..misc.LocalLogger import LOG_PATH, LocalLogger
 from ..misc.nn_module_tools import convert_to_buffer
 from ..misc.step_tracker import StepTracker
-from ..misc.utils import inverse_normalize, vis_depth_map, confidence_map, get_overlap_tag
+from ..misc.utils import inverse_normalize, vis_depth_map, vis_scalar_map, confidence_map, get_overlap_tag
 from ..visualization.annotation import add_label
 from ..visualization.camera_trajectory.interpolation import (
     interpolate_extrinsics,
@@ -260,20 +260,22 @@ class ModelWrapper(LightningModule):
             self.log_dict(all_metrics)
             self.print_preview_metrics(all_metrics, methods, overlap_tag=overlap_tag)
 
-        # Visualising depth and normals, rendered and pointclouds
-        rgb_pred = output.color[0]
-        depth_pred = vis_depth_map(output.depth[0])
 
         # direct depth from gaussian means (used for visualization only)
         gaussian_means = visualization_dump["depth"][0].squeeze()
         if gaussian_means.shape[-1] == 3:
             gaussian_means = gaussian_means.mean(dim=-1)
 
-        # surface normals derived from pointclouds
+        # surface normals derived from pointclouds - context views
         surf_normals_pts = visualization_dump["normal_pts"][0]
+        
+        # Visualising depth and normals for target views
+        # predictions for target views
+        target_rendered_depth = vis_depth_map(output.depth[0])
         surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
         render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
         rend_dist = vis_depth_map(output.dist[0])
+    
         rend_alpha = vis_depth_map(output.alpha[0])
 
         # Visualisation of gaussians (predicted from context views) - for context 1 only 
@@ -308,15 +310,12 @@ class ModelWrapper(LightningModule):
 
         if self.test_cfg.save_image:
             context1_index = batch["context"]["index"][0, 0]
-            # Save the context image 1 and normals
-            image1_vis = batch["context"]["image"][:, 0, ...]* 0.5 + 0.5
-            save_image(image1_vis[0], path / scene / f"context1_color/{context1_index:0>6}.png")
             save_image(gaussian_normal_vis[0], path / scene / f"context1_gaussian_normal/{context1_index:0>6}.png")
             
             # Save the opacities
             gaussian_opacity_map = context1_gaussian_opacities[..., 0]
             # Visualize scale map using the depth visualization function.
-            gaussian_opacity_vis = vis_depth_map(gaussian_opacity_map)# shape: (B, 3, H, W)
+            gaussian_opacity_vis = vis_scalar_map(gaussian_opacity_map)    # shape: (B, 3, H, W)
             save_image(gaussian_opacity_vis[0], path / scene / f"context1_gaussian_opacity/{context1_index:0>6}.png")
             
             # Save the scales: for each scale channel, save one image per batch.
@@ -325,15 +324,41 @@ class ModelWrapper(LightningModule):
                 # Extract one scale channel: shape (B, H, W)
                 gaussian_scale_map = context1_gaussian_scales[..., scale_idx]
                 # Visualize scale map using the depth visualization function.
-                gaussian_scale_vis = vis_depth_map(gaussian_scale_map)# shape: (B, 3, H, W)
+                # gaussian_scale_vis = vis_scalar_map(gaussian_scale_map, norm_min=0.01, norm_max=0.1)    # shape: (B, 3, H, W)
+                norm_min = torch.log(torch.tensor(0.001))
+                norm_max = torch.log(torch.tensor(0.3))
+                gaussian_scale_vis = vis_depth_map(gaussian_scale_map, norm_min=norm_min, norm_max=norm_max, colormap="bwr")    # shape: (B, 3, H, W)
                 save_image(gaussian_scale_vis[0], path / scene / f"context1_gaussian_scale/{context1_index:0>6}_{scale_idx}.png")
             
+            # Save visualisations for context views
+            context_img = inverse_normalize(batch["context"]["image"][0])
+            for index, color in zip(batch["context"]["index"][0], context_img):
+                save_image(color, path / scene / f"contexts_color/{index:0>6}.png")
+
+            context_img_depth = vis_depth_map(gaussian_means)
+            for index, depth in zip(batch["context"]["index"][0], context_img_depth):
+                save_image(depth, path / scene / f"contexts_ptc_depth/{index:0>6}.png")
+
+            context_img_normal_ptc = vis_normal(surf_normals_pts).permute(0, 3, 1, 2).float() / 255.0
+            for index, normal in zip(batch["context"]["index"][0], context_img_normal_ptc):
+                save_image(normal, path / scene / f"contexts_ptc_normal/{index:0>6}.png")
+
             # Save visualisations for target views
             for index, color in zip(batch["target"]["index"][0], output.color[0]):
-                save_image(color, path / scene / f"color/{index:0>6}.png")
-                
-            # TODO: saving other rendered depth/normals of target views
-            # ...
+                save_image(color, path / scene / f"targets_color/{index:0>6}.png")
+
+            for index, depth in zip(batch["target"]["index"][0], target_rendered_depth):
+                save_image(depth, path / scene / f"targets_rendered_depth/{index:0>6}.png")
+
+            for index, normal in zip(batch["target"]["index"][0], surface_normal):
+                save_image(normal, path / scene / f"targets_surface_normal/{index:0>6}.png")
+
+            for index, normal in zip(batch["target"]["index"][0], render_normal):
+                save_image(normal, path / scene / f"targets_rendered_normal/{index:0>6}.png")
+
+            for index, alpha in zip(batch["target"]["index"][0], rend_alpha):
+                save_image(alpha, path / scene / f"targets_rendered_alphas/{index:0>6}.png")
+
 
         if self.test_cfg.save_video:
             frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
@@ -361,7 +386,7 @@ class ModelWrapper(LightningModule):
                 add_label(vcat(*context_normals), "Context Surface Normal"),
                 add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
                 add_label(vcat(*rgb_pred), "Target (Prediction)"),
-                add_label(vcat(*depth_pred), "Depth (Prediction)"),
+                add_label(vcat(*target_rendered_depth), "Depth (Prediction)"),
                 add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
                 add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
                 add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
