@@ -82,74 +82,75 @@ class PoseEvaluator(LightningModule):
         pose_opt = pose_opt.to(self.device)
         # pose_opt = batch["context"]["extrinsics"][0, 0].clone()  # initial pose as the first view: I
 
-        # with torch.set_grad_enabled(True):
-        #     cam_rot_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
-        #     cam_trans_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
+        with torch.set_grad_enabled(True):
+            cam_rot_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
+            cam_trans_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
 
-        #     opt_params = []
-        #     opt_params.append(
-        #         {
-        #             "params": [cam_rot_delta],
-        #             "lr": 0.005,
-        #         }
-        #     )
-        #     opt_params.append(
-        #         {
-        #             "params": [cam_trans_delta],
-        #             "lr": 0.005,
-        #         }
-        #     )
+            opt_params = []
+            opt_params.append(
+                {
+                    "params": [cam_rot_delta],
+                    "lr": 0.005,
+                }
+            )
+            opt_params.append(
+                {
+                    "params": [cam_trans_delta],
+                    "lr": 0.005,
+                }
+            )
 
-        #     pose_optimizer = torch.optim.Adam(opt_params)
+            pose_optimizer = torch.optim.Adam(opt_params)
 
-        #     number_steps = 200
-        #     extrinsics = pose_opt.unsqueeze(0).unsqueeze(0)  # initial pose use pose_opt
-        #     for i in range(number_steps):
-        #         pose_optimizer.zero_grad()
+            number_steps = 200
+            extrinsics = pose_opt.unsqueeze(0).unsqueeze(0)  # initial pose use pose_opt
+            for i in range(number_steps):
+                pose_optimizer.zero_grad()
 
-        #         output = self.decoder.forward(
-        #             gaussians,
-        #             extrinsics,
-        #             batch["context"]["intrinsics"][:, 1:2],
-        #             batch["context"]["near"][:, 1:2],
-        #             batch["context"]["far"][:, 1:2],
-        #             (h, w),
-        #             cam_rot_delta=cam_rot_delta,
-        #             cam_trans_delta=cam_trans_delta,
-        #         )
+                output = self.decoder.forward(
+                    gaussians,
+                    extrinsics,
+                    batch["context"]["intrinsics"][:, 1:2],
+                    batch["context"]["near"][:, 1:2],
+                    batch["context"]["far"][:, 1:2],
+                    (h, w),
+                    cam_rot_delta=cam_rot_delta,
+                    cam_trans_delta=cam_trans_delta,
+                    decoder_type="3D"
+                )
 
-        #         # Compute and log loss.
-        #         batch["target"]["image"] = input_images_view2
-        #         total_loss = 0
-        #         for loss_fn in self.losses:
-        #             loss = loss_fn.forward(output, batch, gaussians, self.global_step)
-        #             total_loss = total_loss + loss
+                # Compute and log loss.
+                batch["target"]["image"] = input_images_view2
+                total_loss = 0
+                for loss_fn in self.losses:
+                    loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+                    total_loss = total_loss + loss
 
-        #         # add ssim structure loss
-        #         ssim_, _, _, structure = ssim(rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
-        #                               rearrange(output.color, "b v c h w -> (b v) c h w"),
-        #                               size_average=True, data_range=1.0, retrun_seprate=True, win_size=11)
-        #         ssim_loss = (1 - structure) * 1.0
-        #         total_loss = total_loss + ssim_loss
+                # add ssim structure loss
+                ssim_, _, _, structure = ssim(rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
+                                      rearrange(output.color, "b v c h w -> (b v) c h w"),
+                                      size_average=True, data_range=1.0, retrun_seprate=True, win_size=11)
+                ssim_loss = (1 - structure) * 1.0
+                total_loss = total_loss + ssim_loss
 
-        #         # backpropagate
-        #         # print(f"Step {i} - Loss: {total_loss.item()}")
-        #         total_loss.backward()
-        #         with torch.no_grad():
-        #             pose_optimizer.step()
-        #             new_extrinsic = update_pose(cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
-        #                                         cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
-        #                                         extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j")
-        #                                         )
-        #             cam_rot_delta.data.fill_(0)
-        #             cam_trans_delta.data.fill_(0)
+                # backpropagate
+                # print(f"Step {i} - Loss: {total_loss.item()}")
+                total_loss.backward()
+                with torch.no_grad():
+                    pose_optimizer.step()
+                    new_extrinsic = update_pose(cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
+                                                cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
+                                                extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j")
+                                                )
+                    cam_rot_delta.data.fill_(0)
+                    cam_trans_delta.data.fill_(0)
 
-        #             extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=1)
+                    extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=1)
 
         # eval pose
         gt_pose = batch["context"]["extrinsics"][0, 1]
-        # eval_pose = extrinsics[0, 0]
-        eval_pose = pose_opt
+        eval_pose = extrinsics[0, 0]
+        # eval_pose = pose_opt
         error_t, error_t_scale, error_R = compute_pose_error(gt_pose, eval_pose)
         error_pose = torch.max(error_t, error_R)  # find the max error
 

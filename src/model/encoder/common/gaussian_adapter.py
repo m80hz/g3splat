@@ -131,7 +131,7 @@ class GaussianAdapter(nn.Module):
 
     @property
     def d_in(self) -> int:
-        return 7 + 3 * self.d_sh
+        return 6 + 3 * self.d_sh
 
 
 class UnifiedGaussianAdapter(GaussianAdapter):
@@ -151,8 +151,16 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         scales_2d = scales_2d.clamp_max(0.3)
         # scales_2d = torch.exp(raw_scales_2d)
 
-        # the third element is fixed (corresponding to the normal direction)
-        scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
+        # # the third element is fixed (corresponding to the normal direction)
+        # scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
+        ratio = 0.01
+        min_scale_2d, _ = scales_2d.min(dim=-1, keepdim=True)
+        # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
+        min_third_scale = 1.e-6
+        third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
+
+        # Extend the 2D scales to 3D
+        scaling_extended = torch.cat([scales_2d, third_scale], dim=-1)
 
         # Normalize the quaternion features to yield a valid quaternion.
         rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)

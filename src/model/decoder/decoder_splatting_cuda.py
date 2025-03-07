@@ -8,7 +8,7 @@ from torch import Tensor
 
 from ...dataset import DatasetCfg
 from ..types import Gaussians
-from .cuda_splatting import DepthRenderingMode, render_cuda
+from .cuda_splatting import DepthRenderingMode, render_cuda, render_cuda_3d
 from .decoder import Decoder, DecoderOutput
 
 
@@ -47,27 +47,50 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         depth_mode: DepthRenderingMode | None = None,
         cam_rot_delta: Float[Tensor, "batch view 3"] | None = None,
         cam_trans_delta: Float[Tensor, "batch view 3"] | None = None,
+        decoder_type: str = "2D"
     ) -> DecoderOutput:
         b, v, _, _ = extrinsics.shape
-        color, alpha, rend_normal, dist, depth, surf_normal = render_cuda(
-            rearrange(extrinsics, "b v i j -> (b v) i j"),
-            rearrange(intrinsics, "b v i j -> (b v) i j"),
-            rearrange(near, "b v -> (b v)"),
-            rearrange(far, "b v -> (b v)"),
-            image_shape,
-            repeat(self.background_color, "c -> (b v) c", b=b, v=v),
-            repeat(gaussians.means, "b g xyz -> (b v) g xyz", v=v),
-            repeat(gaussians.scales, "b g ss -> (b v) g ss", v=v),
-            repeat(gaussians.rotations, "b g xyzw -> (b v) g xyzw", v=v),
-            repeat(gaussians.harmonics, "b g c d_sh -> (b v) g c d_sh", v=v),
-            repeat(gaussians.opacities, "b g -> (b v) g", v=v),
-            depth_ratio=self.depth_ratio,
-            # repeat(gaussians.covariances, "b g i j -> (b v) g i j", v=v),
-            gaussian_covariances=None,
-            scale_invariant=self.make_scale_invariant,
-            cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i") if cam_rot_delta is not None else None,
-            cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
-        )
+        
+        if decoder_type == "2D":
+            color, alpha, rend_normal, dist, depth, surf_normal = render_cuda(
+                rearrange(extrinsics, "b v i j -> (b v) i j"),
+                rearrange(intrinsics, "b v i j -> (b v) i j"),
+                rearrange(near, "b v -> (b v)"),
+                rearrange(far, "b v -> (b v)"),
+                image_shape,
+                repeat(self.background_color, "c -> (b v) c", b=b, v=v),
+                repeat(gaussians.means, "b g xyz -> (b v) g xyz", v=v),
+                repeat(gaussians.scales, "b g ss -> (b v) g ss", v=v),
+                repeat(gaussians.rotations, "b g xyzw -> (b v) g xyzw", v=v),
+                repeat(gaussians.harmonics, "b g c d_sh -> (b v) g c d_sh", v=v),
+                repeat(gaussians.opacities, "b g -> (b v) g", v=v),
+                depth_ratio=self.depth_ratio,
+                # repeat(gaussians.covariances, "b g i j -> (b v) g i j", v=v),
+                gaussian_covariances=None,
+                scale_invariant=self.make_scale_invariant,
+                cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i") if cam_rot_delta is not None else None,
+                cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
+            )
+        elif decoder_type == "3D":
+            color, alpha, rend_normal, dist, depth, surf_normal = render_cuda_3d(
+                rearrange(extrinsics, "b v i j -> (b v) i j"),
+                rearrange(intrinsics, "b v i j -> (b v) i j"),
+                rearrange(near, "b v -> (b v)"),
+                rearrange(far, "b v -> (b v)"),
+                image_shape,
+                repeat(self.background_color, "c -> (b v) c", b=b, v=v),
+                repeat(gaussians.means, "b g xyz -> (b v) g xyz", v=v),
+                repeat(gaussians.covariances, "b g i j -> (b v) g i j", v=v),
+                repeat(gaussians.harmonics, "b g c d_sh -> (b v) g c d_sh", v=v),
+                repeat(gaussians.opacities, "b g -> (b v) g", v=v),
+                scale_invariant=self.make_scale_invariant,
+                cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i") if cam_rot_delta is not None else None,
+                cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
+            )
+        else:
+            raise ValueError("Decoder type should be eitehr 2D or 3D.")
+        
+        
         color = rearrange(color, "(b v) c h w -> b v c h w", b=b, v=v)
         alpha = rearrange(alpha, "(b v) h w -> b v h w", b=b, v=v) if alpha is not None else None
         rend_normal = rearrange(rend_normal, "(b v) xyz h w -> b v xyz h w", b=b, v=v) if rend_normal is not None else None
