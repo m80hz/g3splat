@@ -43,6 +43,7 @@ from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 from ..visualization.normal import vis_normal
+from .encoder.common.gaussians import quaternion_to_matrix
 
 @dataclass
 class OptimizerCfg:
@@ -220,10 +221,12 @@ class ModelWrapper(LightningModule):
             print(f"Test step {batch_idx:0>6}.")
 
         # Render Gaussians.
+        visualization_dump = {}
         with self.benchmarker.time("encoder"):
             gaussians = self.encoder(
                 batch["context"],
                 self.global_step,
+                visualization_dump=visualization_dump
             )
 
         # align the target pose
@@ -257,13 +260,80 @@ class ModelWrapper(LightningModule):
             self.log_dict(all_metrics)
             self.print_preview_metrics(all_metrics, methods, overlap_tag=overlap_tag)
 
+        # Visualising depth and normals, rendered and pointclouds
+        rgb_pred = output.color[0]
+        depth_pred = vis_depth_map(output.depth[0])
+
+        # direct depth from gaussian means (used for visualization only)
+        gaussian_means = visualization_dump["depth"][0].squeeze()
+        if gaussian_means.shape[-1] == 3:
+            gaussian_means = gaussian_means.mean(dim=-1)
+
+        # surface normals derived from pointclouds
+        surf_normals_pts = visualization_dump["normal_pts"][0]
+        surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        rend_dist = vis_depth_map(output.dist[0])
+        rend_alpha = vis_depth_map(output.alpha[0])
+
+        # Visualisation of gaussians (predicted from context views) - for context 1 only 
+        gaussian_rotations = visualization_dump["rotations"]
+        gaussian_rotations = rearrange(gaussian_rotations, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
+        context1_gaussian_rotations = gaussian_rotations[:, 0, ...]     # shape (B, H, W, 4)
+
+        gaussian_scales = visualization_dump["scales"]
+        gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
+        context1_gaussian_scales = gaussian_scales[:, 0, ...]     # shape (B, H, W, 2)
+        
+        gaussian_opacities = visualization_dump['opacities']
+        gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
+        context1_gaussian_opacities = gaussian_opacities[:, 0, ...]     # shape (B, H, W, 1)
+
+        # Normalize the quaternions to ensure they are unit quaternions.
+        context1_gaussian_rotations_norm = context1_gaussian_rotations / context1_gaussian_rotations.norm(dim=-1, keepdim=True)
+
+        # Convert quaternions to rotation matrices. The resulting shape is (B, H, W, 3, 3).
+        gaussian_rot_matrices = quaternion_to_matrix(context1_gaussian_rotations_norm)
+
+        # Extract the third column from each rotation matrix, which represents the surfel normal.
+        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 0]  # shape: (B, H, W, 3)
+
+        # Visualize the selected normals.
+        gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
+
         # Save images.
         (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
+
         if self.test_cfg.save_image:
+            context1_index = batch["context"]["index"][0, 0]
+            # Save the context image 1 and normals
+            image1_vis = batch["context"]["image"][:, 0, ...]* 0.5 + 0.5
+            save_image(image1_vis[0], path / scene / f"context1_color/{context1_index:0>6}.png")
+            save_image(gaussian_normal_vis[0], path / scene / f"context1_gaussian_normal/{context1_index:0>6}.png")
+            
+            # Save the opacities
+            gaussian_opacity_map = context1_gaussian_opacities[..., 0]
+            # Visualize scale map using the depth visualization function.
+            gaussian_opacity_vis = vis_depth_map(gaussian_opacity_map)# shape: (B, 3, H, W)
+            save_image(gaussian_opacity_vis[0], path / scene / f"context1_gaussian_opacity/{context1_index:0>6}.png")
+            
+            # Save the scales: for each scale channel, save one image per batch.
+            # context1_scales has shape (B, H, W, 2)
+            for scale_idx in range(2):
+                # Extract one scale channel: shape (B, H, W)
+                gaussian_scale_map = context1_gaussian_scales[..., scale_idx]
+                # Visualize scale map using the depth visualization function.
+                gaussian_scale_vis = vis_depth_map(gaussian_scale_map)# shape: (B, 3, H, W)
+                save_image(gaussian_scale_vis[0], path / scene / f"context1_gaussian_scale/{context1_index:0>6}_{scale_idx}.png")
+            
+            # Save visualisations for target views
             for index, color in zip(batch["target"]["index"][0], output.color[0]):
                 save_image(color, path / scene / f"color/{index:0>6}.png")
+                
+            # TODO: saving other rendered depth/normals of target views
+            # ...
 
         if self.test_cfg.save_video:
             frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
@@ -275,10 +345,27 @@ class ModelWrapper(LightningModule):
         if self.test_cfg.save_compare:
             # Construct comparison image.
             context_img = inverse_normalize(batch["context"]["image"][0])
+            context_img_depth = vis_depth_map(gaussian_means)
+            context_img_normal = vis_normal(surf_normals_pts).permute(0, 3, 1, 2).float() / 255.0
+            vis_gaps = torch.ones_like(context_img)
+            context = []
+            context_normals = []
+            for i in range(context_img.shape[0]):
+                context.append(context_img[i])
+                context.append(context_img_depth[i])
+                context_normals.append(context_img_normal[i])
+                context_normals.append(vis_gaps[i])
+        
             comparison = hcat(
-                add_label(vcat(*context_img), "Context"),
+                add_label(vcat(*context), "Context"),
+                add_label(vcat(*context_normals), "Context Surface Normal"),
                 add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
                 add_label(vcat(*rgb_pred), "Target (Prediction)"),
+                add_label(vcat(*depth_pred), "Depth (Prediction)"),
+                add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
+                add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
+                add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
+                add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
             )
             save_image(comparison, path / f"{scene}.png")
 
