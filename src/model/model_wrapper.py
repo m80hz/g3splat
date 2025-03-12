@@ -43,6 +43,7 @@ from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 from ..visualization.normal import vis_normal
+from ..geometry.surface_normal import surface_normal_from_depth
 from .encoder.common.gaussians import quaternion_to_matrix
 
 @dataclass
@@ -262,12 +263,17 @@ class ModelWrapper(LightningModule):
 
 
         # direct depth from gaussian means (used for visualization only)
-        gaussian_means = visualization_dump["depth"][0].squeeze()
+        gaussian_means = visualization_dump["depth"][0].squeeze()      # (v, h, w)
         if gaussian_means.shape[-1] == 3:
             gaussian_means = gaussian_means.mean(dim=-1)
 
         # surface normals derived from pointclouds - context views
-        surf_normals_pts = visualization_dump["normal_pts"][0]
+        all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
+        foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
+        foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
+        normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
+                                            valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
+        surf_normals_pts = normal_pts.permute(0, 2, 3, 1)   # (v, h, w, 3)
         
         # Visualising depth and normals for target views
         # predictions for target views
@@ -507,12 +513,17 @@ class ModelWrapper(LightningModule):
         depth_pred = vis_depth_map(output.depth[0])
 
         # direct depth from gaussian means (used for visualization only)
-        gaussian_means = visualization_dump["depth"][0].squeeze()
+        gaussian_means = visualization_dump["depth"][0].squeeze()      # (v, h, w)
         if gaussian_means.shape[-1] == 3:
             gaussian_means = gaussian_means.mean(dim=-1)
 
-        # surface normals derived from pointclouds
-        surf_normals_pts = visualization_dump["normal_pts"][0]
+        # surface normals derived from pointclouds - context views
+        all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
+        foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
+        foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
+        normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
+                                            valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
+        surf_normals_pts = normal_pts.permute(0, 2, 3, 1)   # (v, h, w, 3)
 
         # Compute validation metrics.
         rgb_gt = batch["target"]["image"][0]
