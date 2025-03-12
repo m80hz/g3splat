@@ -281,7 +281,6 @@ class ModelWrapper(LightningModule):
         surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
         render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
         rend_dist = vis_depth_map(output.dist[0])
-    
         rend_alpha = vis_depth_map(output.alpha[0])
 
         # Visualisation of gaussians (predicted from context views) - for context 1 only 
@@ -539,29 +538,51 @@ class ModelWrapper(LightningModule):
         rend_dist = vis_depth_map(output.dist[0])
         rend_alpha = vis_depth_map(output.alpha[0])
 
+        # Visualisation of gaussians orientations (predicted from context views)
+        gaussian_rotations = visualization_dump["rotations"]
+        gaussian_rotations = rearrange(gaussian_rotations, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
+        contexts_gaussian_rotations = gaussian_rotations[0]     # shape (V, H, W, 4)
+
+        # gaussian_scales = visualization_dump["scales"]
+        # gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
+        # contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 2)
+        
+        # gaussian_opacities = visualization_dump['opacities']
+        # gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
+        # contexts_gaussian_opacities = gaussian_opacities[0]     # shape (V, H, W, 1)
+
+        # Normalize the quaternions to ensure they are unit quaternions.
+        contexts_gaussian_rotations_norm = contexts_gaussian_rotations / contexts_gaussian_rotations.norm(dim=-1, keepdim=True)
+        # Convert quaternions to rotation matrices. The resulting shape is (V, H, W, 3, 3).
+        gaussian_rot_matrices = quaternion_to_matrix(contexts_gaussian_rotations_norm)
+        # Extract the third column from each rotation matrix, which represents the surfel normal.
+        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 0]  # shape: (V, H, W, 3)
+        # Visualize the selected normals.
+        gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
+
+
         # Construct comparison image.
         context_img = inverse_normalize(batch["context"]["image"][0])
         context_img_depth = vis_depth_map(gaussian_means)
         context_img_normal = vis_normal(surf_normals_pts).permute(0, 3, 1, 2).float() / 255.0
-        vis_gaps = torch.ones_like(context_img)
         context = []
         context_normals = []
         for i in range(context_img.shape[0]):
             context.append(context_img[i])
             context.append(context_img_depth[i])
             context_normals.append(context_img_normal[i])
-            context_normals.append(vis_gaps[i])
+            context_normals.append(gaussian_normal_vis[i])
        
         comparison = hcat(
-            add_label(vcat(*context), "Context"),
-            add_label(vcat(*context_normals), "Context Surface Normal"),
+            add_label(vcat(*context), "Context / Ptc Depth"),
+            add_label(vcat(*context_normals), "Ctx Surface / GS Normal"),
             add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
             add_label(vcat(*rgb_pred), "Target (Prediction)"),
-            add_label(vcat(*depth_pred), "Depth (Prediction)"),
-            add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
-            add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
-            add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
-            add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
+            add_label(vcat(*depth_pred), "Rendered Depth"),
+            add_label(vcat(*surface_normal), "Surface Normal"),
+            add_label(vcat(*render_normal), "Rendered Normal"),
+            add_label(vcat(*rend_dist), "Depth Distortion"),
+            add_label(vcat(*rend_alpha), "Alpha"),
         )
 
         if self.distiller is not None:
