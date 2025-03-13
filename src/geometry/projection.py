@@ -285,8 +285,21 @@ def depths_to_points(world_view_transform, full_proj_transform, image_width, ima
 def depth_to_normal(world_view_transform, full_proj_transform, image_width, image_height, depth):
     points = depths_to_points(world_view_transform, full_proj_transform, image_width, image_height, depth).reshape(*depth.shape[1:], 3)
     output = torch.zeros_like(points)
-    dx = torch.cat([points[2:, 1:-1] - points[:-2, 1:-1]], dim=0)
-    dy = torch.cat([points[1:-1, 2:] - points[1:-1, :-2]], dim=1)
-    normal_map = torch.nn.functional.normalize(torch.cross(dx, dy, dim=-1), dim=-1)
+    dy = torch.cat([points[2:, 1:-1] - points[:-2, 1:-1]], dim=0)
+    dx = torch.cat([points[1:-1, 2:] - points[1:-1, :-2]], dim=1)
+    normal_map = torch.nn.functional.normalize(torch.cross(dy, dx, dim=-1), dim=-1)
     output[1:-1, 1:-1, :] = normal_map
     return output
+
+def points_to_normal(points):
+    # point of shape (B, H, W, 3)
+    B, H, W, _ = points.shape
+    normals = torch.zeros_like(points)
+
+    # output = torch.zeros_like(points)
+    dy = points[:, 2:, 1:-1, :] - points[:, :-2, 1:-1, :]
+    dx = points[:, 1:-1, 2:, :] - points[:, 1:-1, :-2, :]
+    
+    normal_map = torch.nn.functional.normalize(torch.cross(dy, dx, dim=-1), dim=-1)
+    normals[:, 1:-1, 1:-1, :] = normal_map
+    return normals

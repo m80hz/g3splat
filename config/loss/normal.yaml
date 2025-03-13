@@ -1,6 +1,10 @@
 normal:
-  lambda_normal: 0.05
-  lambda_distortion: 0.0
+
+  lambda_context_views_normal: 0.05
+
+  on_novel_views: false
+  lambda_novel_views_normal: 0.05
+  lambda_novel_views_distortion: 0.0
   apply_normal_after_step: 0
   apply_distortion_after_step: 0
 

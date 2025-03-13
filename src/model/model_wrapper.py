@@ -43,7 +43,8 @@ from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 from ..visualization.normal import vis_normal
-from ..geometry.surface_normal import surface_normal_from_depth
+from ..geometry.surface_normal import surface_normal_from_depth, get_surface_normal
+from ..geometry.projection import points_to_normal
 from .encoder.common.gaussians import quaternion_to_matrix
 
 @dataclass
@@ -268,13 +269,28 @@ class ModelWrapper(LightningModule):
             gaussian_means = gaussian_means.mean(dim=-1)
 
         # surface normals derived from pointclouds - context views
-        all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
-        foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
-        foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
-        normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
-                                            valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
-        surf_normals_pts = normal_pts.permute(0, 2, 3, 1)   # (v, h, w, 3)
-        
+        # all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
+        # foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
+        # foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
+        # normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
+        #                                     valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
+        # 
+        # all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
+        # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
+        # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
+        # sn_batch = []
+        # for i in range(2):
+        #     xyz_i = all_pts3d[0, i, ...][None]  # (B=1, H, W, 3)
+        #     # normal = get_surface_normal(xyz_i)    # using a smoother normal approximation
+        #     sn_batch.append(normal)
+        # sn_batch = torch.cat(sn_batch, dim=3).permute((3, 2, 0, 1))  # [v, c=3, h, w]
+        # surf_normals_pts = sn_batch.permute(0, 2, 3, 1)   # (v, h, w, c=3)
+
+        all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
+        # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
+        # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
+        surf_normals_pts = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
+       
         # Visualising depth and normals for target views
         # predictions for target views
         target_rendered_depth = vis_depth_map(output.depth[0])
@@ -303,7 +319,7 @@ class ModelWrapper(LightningModule):
         gaussian_rot_matrices = quaternion_to_matrix(context1_gaussian_rotations_norm)
 
         # Extract the third column from each rotation matrix, which represents the surfel normal.
-        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 0]  # shape: (B, H, W, 3)
+        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 2]  # shape: (B, H, W, 3)
 
         # Visualize the selected normals.
         gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
@@ -517,13 +533,29 @@ class ModelWrapper(LightningModule):
             gaussian_means = gaussian_means.mean(dim=-1)
 
         # surface normals derived from pointclouds - context views
-        all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
-        foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
-        foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
-        normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
-                                            valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
-        surf_normals_pts = normal_pts.permute(0, 2, 3, 1)   # (v, h, w, 3)
+        # all_pts_depth = gaussian_means.unsqueeze(-1)   # (v, h, w, 1)
+        # foc_x = batch["context"]["intrinsics"][0, 0, 0, 0] * w
+        # foc_y = batch["context"]["intrinsics"][0, 0, 1, 1] * h
+        # normal_pts = surface_normal_from_depth(all_pts_depth.permute(0, 3, 1, 2), focal_x=foc_x[None], focal_y=foc_y[None], 
+        #                                     valid_mask=(all_pts_depth > 0).permute(0, 3, 1, 2)) 
+        # 
+        # all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
+        # # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
+        # # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
+        # sn_batch = []
+        # for i in range(2):
+        #     xyz_i = all_pts3d[0, i, ...][None]  # (B=1, H, W, 3)
+        #     normal = get_surface_normal(xyz_i)    # using a smoother normal approximation
+        #     sn_batch.append(normal)
+        # sn_batch = torch.cat(sn_batch, dim=3).permute((3, 2, 0, 1))  # [v, c=3, h, w]
+        # surf_normals_pts = sn_batch.permute(0, 2, 3, 1)   # (v, h, w, c=3)
+        
+        all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
+        # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
+        # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
+        surf_normals_pts = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
 
+        
         # Compute validation metrics.
         rgb_gt = batch["target"]["image"][0]
         psnr = compute_psnr(rgb_gt, rgb_pred).mean()
@@ -556,7 +588,7 @@ class ModelWrapper(LightningModule):
         # Convert quaternions to rotation matrices. The resulting shape is (V, H, W, 3, 3).
         gaussian_rot_matrices = quaternion_to_matrix(contexts_gaussian_rotations_norm)
         # Extract the third column from each rotation matrix, which represents the surfel normal.
-        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 0]  # shape: (V, H, W, 3)
+        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 2]  # shape: (V, H, W, 3)
         # Visualize the selected normals.
         gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
 
