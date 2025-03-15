@@ -32,10 +32,10 @@ def quaternion_to_matrix(
 
 def build_covariance(
     scale: Float[Tensor, "*#batch 3"],
-    rotation_xyzw: Float[Tensor, "*#batch 4"],
+    rotation_wxyz: Float[Tensor, "*#batch 4"],
 ) -> Float[Tensor, "*batch 3 3"]:
     scale = scale.diag_embed()
-    rotation = quaternion_to_matrix(rotation_xyzw)
+    rotation = quaternion_to_matrix(rotation_wxyz)
     return (
         rotation
         @ scale
