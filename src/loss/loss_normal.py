@@ -74,10 +74,9 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             surf_normals_ptc_normed = surf_normals_ptc / (norm_surf_ptc + eps)
             gs_surfel_normals_normed = gs_surfel_normals / (norm_gs_surfels + eps)
 
-            # Compute the dot product per pixel; using absolute value to account for direction ambiguity (n and -n are equivalent).
+            # Compute the dot product per pixel
             dot_product = torch.sum(surf_normals_ptc_normed * gs_surfel_normals_normed, dim=-1)  # (B, H, W)
-            abs_dot = torch.abs(dot_product)
-            angular_error = 1.0 - abs_dot  # Zero error when perfectly aligned (or anti-aligned).
+            angular_error = 1.0 - dot_product  # Zero error when perfectly aligned
 
             # Apply a robust Huber loss (Smooth L1) to the angular error.
             loss_per_pixel = F.smooth_l1_loss(
@@ -105,7 +104,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             depth = rearrange(prediction.depth, "b v h w -> (b v) h w").detach()                        # (B, H, W)
             surf_normal = rearrange(prediction.surf_normal, "b v c h w -> (b v) c h w").detach()        # (B, 3, H, W)   (depth-derived normals)
             rend_normal = rearrange(prediction.rend_normal, "b v c h w -> (b v) c h w")        # (B, 3, H, W)   (rendered normals)
-            rend_dist = rearrange(prediction.dist, "b v h w -> (b v) h w")                     # (B, H, W)   (depth distortion)        
+            # rend_dist = rearrange(prediction.dist, "b v h w -> (b v) h w")                     # (B, H, W)   (depth distortion)        
             
 
             # -------------------------------
@@ -192,9 +191,9 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             normal_consistency_loss = loss_sum / valid_count
             total_normal_loss = lambda_novel_views_normal * normal_consistency_loss
 
-            dist_loss = lambda_novel_views_dist * (rend_dist).mean()
+            # dist_loss = lambda_novel_views_dist * (rend_dist).mean()
 
-            novel_view_loss = total_normal_loss + dist_loss
+            novel_view_loss = total_normal_loss
         
        
         total_loss = context_view_loss + novel_view_loss

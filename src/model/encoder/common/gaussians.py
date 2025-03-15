@@ -9,8 +9,8 @@ def quaternion_to_matrix(
     quaternions: Float[Tensor, "*batch 4"],
     eps: float = 1e-8,
 ) -> Float[Tensor, "*batch 3 3"]:
-    # Order changed to match scipy format!
-    i, j, k, r = torch.unbind(quaternions, dim=-1)
+    # Order changed to match 2D GS rasterizer
+    r, i, j, k = torch.unbind(quaternions, dim=-1)
     two_s = 2 / ((quaternions * quaternions).sum(dim=-1) + eps)
 
     o = torch.stack(
