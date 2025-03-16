@@ -4,7 +4,7 @@ defaults:
   - /dataset@_group_.scannet_depth: scannet_depth
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips]
+  - override /loss: [mse, lpips, grid]
 
 wandb:
   name: re10k_scannet_2dgs_depth

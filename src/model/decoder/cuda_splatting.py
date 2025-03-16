@@ -344,6 +344,7 @@ def render_cuda_orthographic(
     return torch.stack(all_images)
 
 
+# only used for camera pose optimisation
 def render_cuda_3d(
     extrinsics: Float[Tensor, "batch 4 4"],
     intrinsics: Float[Tensor, "batch 3 3"],

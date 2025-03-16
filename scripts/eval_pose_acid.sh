@@ -1,6 +1,6 @@
 # Cross-Domain Zero-shot Pose Evaluation on ACID
 CUDA_VISIBLE_DEVICES=0 python -m src.eval_pose \
-                        +experiment=acid \
+                        +experiment=acid_grid \
                         +evaluation=eval_pose \
                         dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
                         dataset.re10k.view_sampler.index_path=assets/evaluation_index_acid.json \

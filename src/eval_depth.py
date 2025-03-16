@@ -55,7 +55,7 @@ def evaluate(cfg_dict: DictConfig):
     ckpt_weights = {k[8:] if k.startswith("encoder.") else k: v for k, v in ckpt_weights.items()}
     missing_keys, unexpected_keys = encoder.load_state_dict(ckpt_weights, strict=True)
 
-    trainer = Trainer(max_epochs=-1, accelerator="gpu", inference_mode=True)
+    trainer = Trainer(max_epochs=-1, accelerator="gpu", inference_mode=False)
     depth_evaluator = DepthEvaluator(cfg.evaluation,
                                    encoder,
                                    get_decoder(cfg.model.decoder),

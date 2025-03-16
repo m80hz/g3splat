@@ -22,4 +22,4 @@ class EvaluationCfg:
     output_metrics_path: Path
     animate_side_by_side: bool
     highlighted: list[SceneCfg]
-    save_depth_concat_img: bool
+    use_pose_refinement: bool

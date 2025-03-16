@@ -4,12 +4,16 @@ from ..dataset.data_module import get_data_shim
 from ..dataset.types import BatchedExample
 
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 from lightning import LightningModule
 
 # from ..misc.utils import get_overlap_tag
 from .evaluation_cfg import EvaluationCfg
+from ..misc.cam_utils import update_pose, get_pnp_pose
+from ..loss.loss_ssim import ssim
 
 import matplotlib.pyplot as plt
 
@@ -37,7 +41,7 @@ class DepthEvaluator(LightningModule):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        b, v, _, h, w = batch["context"]["image"].shape
+        b, _, _, h, w = batch["context"]["image"].shape
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
@@ -56,7 +60,152 @@ class DepthEvaluator(LightningModule):
             self.global_step,
             visualization_dump=visualization_dump,
         )
-       
+        
+        # pose refinement for the context and target views
+        if self.cfg.use_pose_refinement:
+            context_view_2_input_image = batch["context"]["image"][:, 1:2].clone()
+            target_views_input_image = batch["target"]["image"][:, :].clone()
+            
+            ######## Context View 2 Pose Refinement ######################
+            pose_opt = get_pnp_pose(visualization_dump['means'][0, 1].squeeze(),
+                                    visualization_dump['opacities'][0, 1].squeeze(),
+                                    batch["context"]["intrinsics"][0, 1], h, w)
+            pose_opt = pose_opt.to(self.device)
+            with torch.set_grad_enabled(True):
+                cam_rot_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
+                cam_trans_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
+
+                opt_params = []
+                opt_params.append(
+                    {
+                        "params": [cam_rot_delta],
+                        "lr": 0.005,
+                    }
+                )
+                opt_params.append(
+                    {
+                        "params": [cam_trans_delta],
+                        "lr": 0.005,
+                    }
+                )
+
+                pose_optimizer = torch.optim.Adam(opt_params)
+
+                number_steps = 200
+                extrinsics = pose_opt.unsqueeze(0).unsqueeze(0)  # initial pose use pose_opt
+                for i in range(number_steps):
+                    pose_optimizer.zero_grad()
+
+                    output = self.decoder.forward(
+                        gaussians,
+                        extrinsics,
+                        batch["context"]["intrinsics"][:, 1:2],
+                        batch["context"]["near"][:, 1:2],
+                        batch["context"]["far"][:, 1:2],
+                        (h, w),
+                        cam_rot_delta=cam_rot_delta,
+                        cam_trans_delta=cam_trans_delta,
+                        decoder_type="3D"
+                    )
+
+                    # Compute and log loss.
+                    batch["target"]["image"] = context_view_2_input_image
+                    total_loss = 0
+                    for loss_fn in self.losses:
+                        loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+                        total_loss = total_loss + loss
+
+                    # add ssim structure loss
+                    ssim_, _, _, structure = ssim(rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
+                                        rearrange(output.color, "b v c h w -> (b v) c h w"),
+                                        size_average=True, data_range=1.0, retrun_seprate=True, win_size=11)
+                    ssim_loss = (1 - structure) * 1.0
+                    total_loss = total_loss + ssim_loss
+
+                    # back-propagate
+                    # print(f"Step {i} - Loss: {total_loss.item()}")
+                    total_loss.backward()
+                    with torch.no_grad():
+                        pose_optimizer.step()
+                        new_extrinsic = update_pose(cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
+                                                    cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
+                                                    extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j")
+                                                    )
+                        cam_rot_delta.data.fill_(0)
+                        cam_trans_delta.data.fill_(0)
+
+                        extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=1)
+                        batch["context"]["extrinsics"][0, 1] = extrinsics[0, 0].clone()
+
+            ######## Target Views Pose Refinement ######################
+            batch["target"]["image"] = target_views_input_image            
+            b, v, _, _, _ = batch["target"]["image"].shape
+            
+            with torch.set_grad_enabled(True):
+                cam_rot_delta = nn.Parameter(torch.zeros([b, v, 3], requires_grad=True, device=self.device))
+                cam_trans_delta = nn.Parameter(torch.zeros([b, v, 3], requires_grad=True, device=self.device))
+
+                opt_params = []
+                opt_params.append(
+                    {
+                        "params": [cam_rot_delta],
+                        "lr": 0.005,
+                    }
+                )
+                opt_params.append(
+                    {
+                        "params": [cam_trans_delta],
+                        "lr": 0.005,
+                    }
+                )
+                pose_optimizer = torch.optim.Adam(opt_params)
+
+                number_steps = 200
+                extrinsics = batch["target"]["extrinsics"].clone()
+                for i in range(number_steps):
+                    pose_optimizer.zero_grad()
+
+                    output = self.decoder.forward(
+                        gaussians,
+                        extrinsics,
+                        batch["target"]["intrinsics"],
+                        batch["target"]["near"],
+                        batch["target"]["far"],
+                        (h, w),
+                        cam_rot_delta=cam_rot_delta,
+                        cam_trans_delta=cam_trans_delta,
+                        decoder_type="3D"
+                    )
+
+                    # Compute and log loss.
+                    total_loss = 0
+                    for loss_fn in self.losses:
+                        loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+                        total_loss = total_loss + loss
+
+                    # add ssim structure loss
+                    ssim_, _, _, structure = ssim(rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
+                                        rearrange(output.color, "b v c h w -> (b v) c h w"),
+                                        size_average=True, data_range=1.0, retrun_seprate=True, win_size=11)
+                    ssim_loss = (1 - structure) * 1.0
+                    total_loss = total_loss + ssim_loss
+
+                    # back-propagate
+                    total_loss.backward()
+                    with torch.no_grad():
+                        pose_optimizer.step()
+                        new_extrinsic = update_pose(cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
+                                                    cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
+                                                    extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j")
+                                                    )
+                        cam_rot_delta.data.fill_(0)
+                        cam_trans_delta.data.fill_(0)
+
+                        extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=v)
+                        batch["target"]["extrinsics"] = extrinsics.clone()
+                        batch["target"]["image"] = target_views_input_image            
+
+
         # render context views
         output_context = self.decoder.forward(
             gaussians,
@@ -83,12 +232,31 @@ class DepthEvaluator(LightningModule):
         target_img_rendered = output_target.color[0]
         target_depth_rendered = output_target.depth[0]
 
-        # direct depth from gaussian means
-        gaussian_means = visualization_dump["depth"][0].squeeze()
-        if gaussian_means.shape[-1] == 3:
-            gaussian_means = gaussian_means.mean(dim=-1)
+        # direct depth from gaussian means for context view 1
+        gaussian_depths = visualization_dump["depth"][0].squeeze()   # (V, H, W, 1)
+        if gaussian_depths.shape[-1] == 3:
+            gaussian_depths = gaussian_depths.mean(dim=-1)
 
-        context_depth_pointcloud = gaussian_means
+        context_depth_pointcloud = gaussian_depths
+        #### Warp context view 2 pointcloud back -- from view 1 to 2
+        # Helper: convert (B, H, W, 3) to homogeneous coordinates (B, 4, H, W)
+        def pts3d_to_hom(pts: Tensor) -> Tensor:
+            B, H, W, _ = pts.shape
+            ones = torch.ones(B, H, W, 1, device=pts.device, dtype=pts.dtype)
+            pts_h = torch.cat([pts, ones], dim=-1)  # (B, H, W, 4)
+            return pts_h.permute(0, 3, 1, 2)         # (B, 4, H, W)
+        
+        all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
+        pts3d2 = all_pts3d[:, 1, ...]  # (b, h, w, 3)
+        T1 = batch["context"]["extrinsics"][:, 0, :, :]     # view1 extrinsics (camera-to-world)
+        T2 = batch["context"]["extrinsics"][:, 1, :, :]     # view2 extrinsics (camera-to-world)
+        # Compute relative transformation: T_rel = T2^{-1} * T1 maps points from view1's frame to view2's camera coordinates.
+        T2_inv = torch.inverse(T2)
+        T_rel = torch.bmm(T2_inv, T1)  # (b=1, 4, 4)
+        pts3d2_h = pts3d_to_hom(pts3d2)  # (b=1, 4, h, w)
+        pts2_cam = torch.bmm(T_rel, pts3d2_h.view(1, 4, -1)).view(1, 4, h, w)
+        depth2 = pts2_cam[:, 2, :, :].view(1, h, w)
+        context_depth_pointcloud[1:2] = depth2
         
         context_depth_gt = batch["context"]["depth"][0].squeeze(1)
         context_valid_depth_gt = batch["context"]["valid_depth"][0].squeeze(1)

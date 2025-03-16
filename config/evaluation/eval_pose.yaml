@@ -15,5 +15,6 @@ highlighted:
     target_index: 201
 
 
-save_depth_concat_img: false
+use_pose_refinement: true
+
 output_metrics_path: baselines/re10k/evaluation_metrics.json

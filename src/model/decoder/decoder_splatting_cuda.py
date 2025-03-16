@@ -72,6 +72,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
             )
         elif decoder_type == "3D":
+            # only used for camera pose optimisation
             color, alpha, rend_normal, dist, depth, surf_normal = render_cuda_3d(
                 rearrange(extrinsics, "b v i j -> (b v) i j"),
                 rearrange(intrinsics, "b v i j -> (b v) i j"),
@@ -88,7 +89,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
             )
         else:
-            raise ValueError("Decoder type should be eitehr 2D or 3D.")
+            raise ValueError("Decoder type should be either 2D or 3D.")
         
         
         color = rearrange(color, "(b v) c h w -> b v c h w", b=b, v=v)

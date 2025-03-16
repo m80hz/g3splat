@@ -1,13 +1,13 @@
 # @package _global_
 
 defaults:
-  - /dataset@_group_.scannet_depth: scannet_depth
+  - /dataset@_group_.scannet_pose: scannet_pose
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips]
+  - override /loss: [mse, lpips, grid, normal]
 
 wandb:
-  name: re10k_scannet_2dgs_depth
+  name: re10k_scannet_2dgs_pose
   tags: [re10k_2dgs, 256x256]
 
 model:
@@ -22,9 +22,8 @@ model:
     depth_ratio: 0
 
 
-
 dataset:
-  scannet_depth:
+  scannet_pose:
     view_sampler:
       warm_up_steps: 150_000
 

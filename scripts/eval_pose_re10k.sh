@@ -1,6 +1,6 @@
 # In-Domain Pose Evaluation on RE10k
 CUDA_VISIBLE_DEVICES=0 python -m src.eval_pose \
-                        +experiment=re10k_grid_1x8 \
+                        +experiment=re10k_grid \
                         +evaluation=eval_pose \
                         dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
                         dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
