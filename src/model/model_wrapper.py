@@ -455,6 +455,7 @@ class ModelWrapper(LightningModule):
                         (h, w),
                         cam_rot_delta=cam_rot_delta,
                         cam_trans_delta=cam_trans_delta,
+                        decoder_type="3D"
                     )
 
                     # Compute and log loss.

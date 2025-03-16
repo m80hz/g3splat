@@ -203,7 +203,6 @@ class DepthEvaluator(LightningModule):
 
                         extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=v)
                         batch["target"]["extrinsics"] = extrinsics.clone()
-                        batch["target"]["image"] = target_views_input_image            
 
 
         # render context views

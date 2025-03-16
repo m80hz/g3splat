@@ -52,8 +52,7 @@ train:
 
 test:
   output_path: outputs/test
-  # align_pose: true
-  align_pose: false
+  align_pose: true
   pose_align_steps: 100
   rot_opt_lr:  0.005
   trans_opt_lr:  0.005

@@ -360,7 +360,8 @@ def render_cuda_3d(
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
     cam_trans_delta: Float[Tensor, "batch 3"] | None = None,
-) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"]]:
+) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None,
+           Float[Tensor, "batch height width"] | None, Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None]:
     assert use_sh or gaussian_sh_coefficients.shape[-1] == 1
 
     # Make sure everything is in a range where numerical issues don't appear.
