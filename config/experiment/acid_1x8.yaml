@@ -7,8 +7,8 @@ defaults:
   - override /loss: [mse, lpips]
 
 wandb:
-  name: acid_hpc
-  tags: [acid_hpc, 256x256]
+  name: acid
+  tags: [acid, 256x256]
 
 model:
   encoder:

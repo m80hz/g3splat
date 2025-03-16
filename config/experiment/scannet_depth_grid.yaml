@@ -7,8 +7,8 @@ defaults:
   - override /loss: [mse, lpips, grid]
 
 wandb:
-  name: re10k_scannet_2dgs_depth
-  tags: [re10k_2dgs, 256x256]
+  name: re10k_scannet_depth_grid
+  tags: [re10k_scannet_depth_grid, 256x256]
 
 model:
   encoder:

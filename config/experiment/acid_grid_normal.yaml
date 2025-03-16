@@ -7,8 +7,8 @@ defaults:
   - override /loss: [mse, lpips, grid, normal]
 
 wandb:
-  name: acid_hpc
-  tags: [acid_hpc, 256x256]
+  name: acid_grid_normal_hpc
+  tags: [acid_grid_normal_hpc, 256x256]
 
 model:
   encoder:
