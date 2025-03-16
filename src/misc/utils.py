@@ -10,7 +10,7 @@ def inverse_normalize(tensor, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)):
 
 
 # Color-map the result.
-def vis_scalar_map(result, norm_min=0.0, norm_max=1.0, colormap="bwr"):
+def vis_scalar_map(result, norm_min=0.0, norm_max=1.0, colormap="turbo"):
     # Normalize using the provided constant values.
     normalized = (result - norm_min) / (norm_max - norm_min)
     normalized = normalized.clamp(0, 1)

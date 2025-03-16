@@ -307,6 +307,7 @@ class ModelWrapper(LightningModule):
         gaussian_scales = visualization_dump["scales"]
         gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
         context1_gaussian_scales = gaussian_scales[:, 0, ...]     # shape (B, H, W, 2)
+        sorted_context1_gaussian_scales = torch.sort(context1_gaussian_scales, dim=-1, descending=True)[0]
         
         gaussian_opacities = visualization_dump['opacities']
         gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
@@ -335,20 +336,20 @@ class ModelWrapper(LightningModule):
             
             # Save the opacities
             gaussian_opacity_map = context1_gaussian_opacities[..., 0]
-            # Visualize scale map using the depth visualization function.
             gaussian_opacity_vis = vis_scalar_map(gaussian_opacity_map)    # shape: (B, 3, H, W)
             save_image(gaussian_opacity_vis[0], path / scene / f"context1_gaussian_opacity/{context1_index:0>6}.png")
             
             # Save the scales: for each scale channel, save one image per batch.
-            # context1_scales has shape (B, H, W, 2)
+            # sorted_context1_gaussian_scales has shape (B, H, W, 2)
             for scale_idx in range(2):
                 # Extract one scale channel: shape (B, H, W)
-                gaussian_scale_map = context1_gaussian_scales[..., scale_idx]
+                # gaussian_scale_map = context1_gaussian_scales[..., scale_idx]
+                gaussian_scale_map = sorted_context1_gaussian_scales[..., scale_idx]
                 # Visualize scale map using the depth visualization function.
                 # gaussian_scale_vis = vis_scalar_map(gaussian_scale_map, norm_min=0.01, norm_max=0.1)    # shape: (B, 3, H, W)
                 norm_min = torch.log(torch.tensor(0.001))
                 norm_max = torch.log(torch.tensor(0.3))
-                gaussian_scale_vis = vis_depth_map(gaussian_scale_map, norm_min=norm_min, norm_max=norm_max, colormap="bwr")    # shape: (B, 3, H, W)
+                gaussian_scale_vis = vis_depth_map(gaussian_scale_map, norm_min=norm_min, norm_max=norm_max, colormap='turbo_r')    # shape: (B, 3, H, W)
                 save_image(gaussian_scale_vis[0], path / scene / f"context1_gaussian_scale/{context1_index:0>6}_{scale_idx}.png")
             
             # Save visualisations for context views
@@ -579,6 +580,8 @@ class ModelWrapper(LightningModule):
         # gaussian_scales = visualization_dump["scales"]
         # gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
         # contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 2)
+        # sorted_contexts_gaussian_scales = torch.sort(contexts_gaussian_scales, dim=-1, descending=True)[0]
+        
         
         # gaussian_opacities = visualization_dump['opacities']
         # gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
