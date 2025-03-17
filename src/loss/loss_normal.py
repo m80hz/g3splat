@@ -51,7 +51,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             B, V, C, H, W = batch["context"]["image"].shape
 
             # # Reshape gaussians.means into (B, V, H, W, 3)
-            all_pts3d = rearrange(gaussians.means, "b (v h w) d -> (b v) h w d", h=H, w=W)
+            all_pts3d = rearrange(gaussians.means, "b (v h w) d -> (b v) h w d", h=H, w=W).detach()
             # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
             # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
             surf_normals_ptc = points_to_normal(all_pts3d)      # (B, H, W, 3)
