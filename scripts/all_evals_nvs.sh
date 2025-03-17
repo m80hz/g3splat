@@ -99,4 +99,48 @@ CUDA_VISIBLE_DEVICES=1 python -m src.main \
 
 
 
+CUDA_VISIBLE_DEVICES=1 python -m src.main \
+                        +experiment=re10k_1x8 \
+                        mode=test \
+                        wandb.name=test_re10k \
+                        dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
+                        dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
+                        test.save_image=true \
+                        checkpointing.load=./pretrained_weights/ours_re10k_hpc_2025-03-04_02-02-31_step_18748.ckpt \
+                        > "nvs_re10k_with-pose-refinement_ours_re10k_hpc_2025-03-04_02-02-31_step_18748.txt" 2>&1
+
+CUDA_VISIBLE_DEVICES=1 python -m src.main \
+                        +experiment=re10k_1x8 \
+                        mode=test \
+                        test.align_pose=false \
+                        wandb.name=test_re10k \
+                        dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
+                        dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
+                        test.save_image=false \
+                        checkpointing.load=./pretrained_weights/ours_re10k_hpc_2025-03-04_02-02-31_step_18748.ckpt \
+                        > "nvs_re10k_without-pose-refinement_ours_re10k_hpc_2025-03-04_02-02-31_step_18748.txt" 2>&1
+
+
+CUDA_VISIBLE_DEVICES=1 python -m src.main \
+                        +experiment=re10k_grid_normal_1x8 \
+                        mode=test \
+                        wandb.name=test_re10k_grid_normal \
+                        dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
+                        dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
+                        test.save_image=true \
+                        checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_hpc_2025-03-05_16-31-33_step_18748.ckpt \
+                        > "nvs_re10k_grid_normal_with-pose-refinement_ours_re10k_grid_normal_hpc_2025-03-05_16-31-33_step_18748.txt" 2>&1
+
+CUDA_VISIBLE_DEVICES=1 python -m src.main \
+                        +experiment=re10k_grid_normal_1x8 \
+                        mode=test \
+                        test.align_pose=false \
+                        wandb.name=test_re10k_grid_normal \
+                        dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
+                        dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
+                        test.save_image=false \
+                        checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_hpc_2025-03-05_16-31-33_step_18748.ckpt \
+                        > "nvs_re10k_grid_normal_without-pose-refinement_ours_re10k_grid_normal_hpc_2025-03-05_16-31-33_step_18748.txt" 2>&1
+
+
 echo "All scripts executed." 
