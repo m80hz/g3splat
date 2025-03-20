@@ -512,6 +512,97 @@ class DepthEvaluator(LightningModule):
         else:
             print("No targets depth subgroup metrics recorded.")
 
+
+    def depth2disparity(self, depth, return_mask=False):
+        import numpy as np
+        if isinstance(depth, torch.Tensor):
+            disparity = torch.zeros_like(depth)
+        elif isinstance(depth, np.ndarray):
+            disparity = np.zeros_like(depth)
+        non_negtive_mask = depth > 0
+        disparity[non_negtive_mask] = 1.0 / depth[non_negtive_mask]
+        if return_mask:
+            return disparity, non_negtive_mask
+        else:
+            return disparity
+
+
+    def absolute_error_loss(self, params, predicted_depth, ground_truth_depth):
+        import numpy as np
+        s, t = params
+
+        predicted_aligned = s * predicted_depth + t
+
+        abs_error = np.abs(predicted_aligned - ground_truth_depth)
+        return np.sum(abs_error)
+
+    
+    def absolute_value_scaling(self, predicted_depth, ground_truth_depth, s=1, t=0):
+        import numpy as np
+        from scipy.optimize import minimize
+        
+        predicted_depth_np = predicted_depth.cpu().numpy().reshape(-1)
+        ground_truth_depth_np = ground_truth_depth.cpu().numpy().reshape(-1)
+
+        initial_params = torch.tensor([s, t]).cpu()  # s = 1, t = 0
+
+        result = minimize(
+            self.absolute_error_loss,
+            initial_params,
+            args=(predicted_depth_np, ground_truth_depth_np),
+        )
+
+        s, t = result.x
+        return s, t
+    
+    
+    def absolute_value_scaling2(self, predicted_depth, ground_truth_depth, s_init=1.0, t_init=0.0, lr=1e-4, max_iters=1000, tol=1e-6):
+        # Initialize s and t as torch tensors with requires_grad=True
+        s = torch.tensor(
+            [s_init],
+            requires_grad=True,
+            device=predicted_depth.device,
+            dtype=predicted_depth.dtype,
+        )
+        t = torch.tensor(
+            [t_init],
+            requires_grad=True,
+            device=predicted_depth.device,
+            dtype=predicted_depth.dtype,
+        )
+
+        optimizer = torch.optim.Adam([s, t], lr=lr)
+
+        prev_loss = None
+
+        for i in range(max_iters):
+            optimizer.zero_grad()
+
+            # Compute predicted aligned depth
+            predicted_aligned = s * predicted_depth + t
+
+            # Compute absolute error
+            abs_error = torch.abs(predicted_aligned - ground_truth_depth)
+
+            # Compute loss
+            loss = torch.sum(abs_error)
+
+            # Backpropagate
+            loss.backward()
+
+            # Update parameters
+            optimizer.step()
+
+            # Check convergence
+            if prev_loss is not None and torch.abs(prev_loss - loss) < tol:
+                break
+
+            prev_loss = loss.item()
+
+        return s.detach().item(), t.detach().item()
+
+    
+    # adapted from CUT3R (https://github.com/CUT3R/CUT3R/)
     @torch.no_grad
     def depth_evaluation(self, 
         predicted_depth_original,
@@ -544,7 +635,6 @@ class DepthEvaluator(LightningModule):
             gt_depth_map_full (torch.Tensor)
         """
         import numpy as np
-        import torch
 
         if isinstance(predicted_depth_original, np.ndarray):
             predicted_depth_original = torch.from_numpy(predicted_depth_original)
@@ -594,7 +684,7 @@ class DepthEvaluator(LightningModule):
             t = torch.tensor(t, device=predicted_depth_original.device)
             predicted_depth = s * predicted_depth + t
         elif align_with_lad:
-            s, t = absolute_value_scaling(
+            s, t = self.absolute_value_scaling(
                 predicted_depth,
                 ground_truth_depth,
                 s=torch.median(ground_truth_depth) / torch.median(predicted_depth),
@@ -602,7 +692,7 @@ class DepthEvaluator(LightningModule):
             predicted_depth = s * predicted_depth + t
         elif align_with_lad2:
             s_init = (torch.median(ground_truth_depth) / torch.median(predicted_depth)).item()
-            s, t = absolute_value_scaling2(
+            s, t = self.absolute_value_scaling2(
                 predicted_depth,
                 ground_truth_depth,
                 s_init=s_init,
@@ -629,7 +719,7 @@ class DepthEvaluator(LightningModule):
 
         if disp_input:
             ground_truth_depth = real_gt
-            predicted_depth = depth2disparity(predicted_depth)
+            predicted_depth = self.depth2disparity(predicted_depth)
 
         if post_clip_min is not None:
             predicted_depth = torch.clamp(predicted_depth, min=post_clip_min)
@@ -656,22 +746,22 @@ class DepthEvaluator(LightningModule):
         if metric_scale:
             predicted_depth_original_final = predicted_depth_original
             if disp_input:
-                predicted_depth_original_final = depth2disparity(predicted_depth_original_final)
+                predicted_depth_original_final = self.depth2disparity(predicted_depth_original_final)
             depth_error_parity_map = torch.abs(predicted_depth_original_final - ground_truth_depth_original) / ground_truth_depth_original
         elif align_with_lstsq or align_with_lad or align_with_lad2:
             predicted_depth_original_final = predicted_depth_original * s + t
             if disp_input:
-                predicted_depth_original_final = depth2disparity(predicted_depth_original_final)
+                predicted_depth_original_final = self.depth2disparity(predicted_depth_original_final)
             depth_error_parity_map = torch.abs(predicted_depth_original_final - ground_truth_depth_original) / ground_truth_depth_original
         elif align_with_scale:
             predicted_depth_original_final = predicted_depth_original * s
             if disp_input:
-                predicted_depth_original_final = depth2disparity(predicted_depth_original_final)
+                predicted_depth_original_final = self.depth2disparity(predicted_depth_original_final)
             depth_error_parity_map = torch.abs(predicted_depth_original_final - ground_truth_depth_original) / ground_truth_depth_original
         else:
             predicted_depth_original_final = predicted_depth_original * scale_factor
             if disp_input:
-                predicted_depth_original_final = depth2disparity(predicted_depth_original_final)
+                predicted_depth_original_final = self.depth2disparity(predicted_depth_original_final)
             depth_error_parity_map = torch.abs(predicted_depth_original_final - ground_truth_depth_original) / ground_truth_depth_original
 
         depth_error_parity_map_full = torch.zeros_like(ground_truth_depth_original)
