@@ -303,7 +303,7 @@ class DatasetScannetPose(IterableDataset):
                     "far": self.get_bound("far", 2),
                     "index": context_indices,
                 },
-                "scene": scene_name,
+                "scene": f"{scene_name}_{context_indices[0]}_{context_indices[1]}",
             }
             yield apply_crop_shim(example, tuple(self.cfg.input_image_shape))
 

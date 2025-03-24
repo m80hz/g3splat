@@ -331,7 +331,7 @@ class DatasetScannetDepth(IterableDataset):
                     "far": self.get_bound("far", len(target_indices)),
                     "index": target_idx_tensor,
                 },
-                "scene": scene_name,
+                "scene": f"{scene_name}_{context_indices[0]}_{context_indices[1]}",
             }
 
             example = apply_crop_shim(example, tuple(self.cfg.input_image_shape))
