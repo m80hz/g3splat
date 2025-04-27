@@ -21,16 +21,8 @@ module use /apps/icl/modules/all
 source ~/.bashrc
 conda activate /hpcfs/users/a1733633/project/Gen2DGS/.conda
 
-Redirect temporary files to a directory with sufficient space
-export TMPDIR=/hpcfs/users/a1733633/tmp
-export TMP=/hpcfs/users/a1733633/tmp
-export TEMP=/hpcfs/users/a1733633/tmp
-export WANDB_CACHE_DIR=/hpcfs/users/a1733633/tmp/wandb_cache
-mkdir -p $TMPDIR
-mkdir -p $WANDB_CACHE_DIR
-
 echo "Starting job: $SLURM_JOB_NAME with ID $SLURM_JOB_ID"
 echo "Using TMPDIR: $TMPDIR"
 echo "Nodes allocated: $SLURM_NODELIST"
 
-srun --export=ALL python -m src.main +experiment=exp_config wandb.mode=offline
+srun --export=ALL python -m src.main +experiment=re10k_grid_normal wandb.mode=offline
