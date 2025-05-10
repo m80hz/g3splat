@@ -28,7 +28,7 @@ def vis_depth_map(result, norm_min=None, norm_max=None, colormap="turbo"):
         colormap (str): Matplotlib colormap to use. Default "bwr" maps low values to blue and high values to red.
     
     Returns:
-        torch.Tensor: A color-mapped image tensor (float in [0, 1] with shape [B, H, W, 3]).
+        torch.Tensor: A color-mapped image tensor (float in [0, 1] with shape [B, 3, H, W]).
     """
     # Apply log-transform to the input values.
     result_log = result.log()
