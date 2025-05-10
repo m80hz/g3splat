@@ -27,8 +27,8 @@ def center_crop(
     images: Float[Tensor, "*#batch c h w"],
     intrinsics: Float[Tensor, "*#batch 3 3"],
     shape: tuple[int, int],
-    depths: None | Float[Tensor, "*#batch 1 h w"],
-    valid_depths: None | Float[Tensor, "*#batch 1 h w"]
+    depths: None | Float[Tensor, "*#batch 1 hd wd"],
+    valid_depths: None | Float[Tensor, "*#batch 1 hd wd"]
 ) -> (
     tuple[
         Float[Tensor, "*#batch c h_out w_out"],  # updated images
@@ -67,8 +67,8 @@ def rescale_and_crop(
     images: Float[Tensor, "*#batch c h w"],
     intrinsics: Float[Tensor, "*#batch 3 3"],
     shape: tuple[int, int],
-    depths: None | Float[Tensor, "*#batch 1 h w"],
-    valid_depths: None | Float[Tensor, "*#batch 1 h w"]
+    depths: None | Float[Tensor, "*#batch 1 hd wd"],
+    valid_depths: None | Float[Tensor, "*#batch 1 hd wd"]
 ) -> (
     tuple[
         Float[Tensor, "*#batch c h_out w_out"],  # updated images
