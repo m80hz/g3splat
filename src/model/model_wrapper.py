@@ -46,6 +46,7 @@ from ..visualization.normal import vis_normal
 from ..geometry.surface_normal import surface_normal_from_depth, get_surface_normal
 from ..geometry.projection import points_to_normal
 from .encoder.common.gaussians import quaternion_to_matrix
+from .ply_export import save_gaussian_ply
 
 @dataclass
 class OptimizerCfg:
@@ -65,6 +66,8 @@ class TestCfg:
     save_image: bool
     save_video: bool
     save_compare: bool
+    save_gaussian: bool
+    
 
 
 @dataclass
@@ -231,6 +234,14 @@ class ModelWrapper(LightningModule):
                 visualization_dump=visualization_dump
             )
 
+        # save gaussians
+        if self.test_cfg.save_gaussian:
+            (scene,) = batch["scene"]
+            name = get_cfg()["wandb"]["name"]
+            path = self.test_cfg.output_path / name
+            save_path = Path(path) / 'gaussians' / (scene + '.ply')
+            save_gaussian_ply(gaussians, visualization_dump, batch, save_path)
+
         # align the target pose
         if self.test_cfg.align_pose:
             output = self.test_step_align(batch, gaussians)
@@ -308,6 +319,9 @@ class ModelWrapper(LightningModule):
         gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
         context1_gaussian_scales = gaussian_scales[:, 0, ...]     # shape (B, H, W, 2)
         sorted_context1_gaussian_scales = torch.sort(context1_gaussian_scales, dim=-1, descending=True)[0]
+        # Compute normalized scales by dividing every channel by the first channel (i.e., scale 0)
+        epsilon = 1e-6
+        context1_gaussian_scales_normalized = context1_gaussian_scales / (context1_gaussian_scales[..., :1] + epsilon)   # shape (B, H, W, 2)
         
         gaussian_opacities = visualization_dump['opacities']
         gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
@@ -352,6 +366,19 @@ class ModelWrapper(LightningModule):
                 gaussian_scale_vis = vis_depth_map(gaussian_scale_map, norm_min=norm_min, norm_max=norm_max, colormap='turbo_r')    # shape: (B, 3, H, W)
                 save_image(gaussian_scale_vis[0], path / scene / f"context1_gaussian_scale/{context1_index:0>6}_{scale_idx}.png")
             
+                # Save the normalised scales for context 1: save one image per batch
+                gaussian_scale_normalized_map = context1_gaussian_scales_normalized[..., scale_idx]       
+                gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, norm_min=0.05, norm_max=0.9, colormap='turbo_r')    # shape: (B, 3, H, W)  
+                # norm_min = torch.log(torch.tensor(0.1))
+                # norm_max = torch.log(torch.tensor(0.8))
+                # gaussian_scale_normalized_vis = vis_depth_map(gaussian_scale_normalized_map, norm_min=norm_min, norm_max=norm_max, colormap='turbo')    # shape: (B, 3, H, W)
+                # gaussian_scale_normalized_vis = vis_depth_map(gaussian_scale_normalized_map, colormap='turbo_r')    # shape: (B, 3, H, W)
+                save_image(gaussian_scale_normalized_vis[0], path / scene / f"context1_gaussian_scale_normalized/{context1_index:0>6}_{scale_idx}.png")
+                
+                
+    
+            
+
             # Save visualisations for context views
             context_img = inverse_normalize(batch["context"]["image"][0])
             for index, color in zip(batch["context"]["index"][0], context_img):
