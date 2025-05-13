@@ -321,7 +321,7 @@ class ModelWrapper(LightningModule):
         sorted_context1_gaussian_scales = torch.sort(context1_gaussian_scales, dim=-1, descending=True)[0]
         # Compute normalized scales by dividing every channel by the first channel (i.e., scale 0)
         epsilon = 1e-6
-        context1_gaussian_scales_normalized = context1_gaussian_scales / (context1_gaussian_scales[..., :1] + epsilon)   # shape (B, H, W, 2)
+        context1_gaussian_scales_normalized = sorted_context1_gaussian_scales / (sorted_context1_gaussian_scales[..., :1] + epsilon)   # shape (B, H, W, 2)
         
         gaussian_opacities = visualization_dump['opacities']
         gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
@@ -368,7 +368,7 @@ class ModelWrapper(LightningModule):
             
                 # Save the normalised scales for context 1: save one image per batch
                 gaussian_scale_normalized_map = context1_gaussian_scales_normalized[..., scale_idx]       
-                gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, norm_min=0.05, norm_max=0.9, colormap='turbo_r')    # shape: (B, 3, H, W)  
+                gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, norm_min=0.1, norm_max=0.7, colormap='turbo_r')    # shape: (B, 3, H, W)  
                 # norm_min = torch.log(torch.tensor(0.1))
                 # norm_max = torch.log(torch.tensor(0.8))
                 # gaussian_scale_normalized_vis = vis_depth_map(gaussian_scale_normalized_map, norm_min=norm_min, norm_max=norm_max, colormap='turbo')    # shape: (B, 3, H, W)
