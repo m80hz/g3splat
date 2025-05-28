@@ -368,7 +368,8 @@ class ModelWrapper(LightningModule):
             
                 # Save the normalised scales for context 1: save one image per batch
                 gaussian_scale_normalized_map = context1_gaussian_scales_normalized[..., scale_idx]       
-                gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, norm_min=0.1, norm_max=0.55, colormap='turbo_r')    # shape: (B, 3, H, W)  
+                # gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, colormap='turbo_r')    # shape: (B, 3, H, W)  
+                gaussian_scale_normalized_vis = vis_scalar_map(gaussian_scale_normalized_map, norm_min=0.05, norm_max=0.8, colormap='turbo_r')    # shape: (B, 3, H, W)  
                 # norm_min = torch.log(torch.tensor(0.05))
                 # norm_max = torch.log(torch.tensor(0.6))
                 # gaussian_scale_normalized_vis = vis_depth_map(gaussian_scale_normalized_map, norm_min=norm_min, norm_max=norm_max, colormap='turbo')    # shape: (B, 3, H, W)

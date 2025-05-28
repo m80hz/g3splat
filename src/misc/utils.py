@@ -129,3 +129,33 @@ def inspect_depth_tensor(depth_tensor: torch.Tensor, name: str = "Depth Tensor")
     print(f"Inf count: {inf_count} ({percent_inf:.2f}%)")
     print(f"NaN count: {nan_count} ({percent_nan:.2f}%)")
     print(f"---------------------------\n")
+
+
+
+
+if __name__ == "__main__":
+    
+    import matplotlib.pyplot as plt
+    
+ # --- Legend parameters ---
+    norm_min, norm_max = 0.0, 1.0
+    height = 256
+    width  = 20   # legend bar width in pixels
+
+    # 1) Build a [height × width] gradient in [norm_min, norm_max]
+    gradient = torch.linspace(norm_min, norm_max, height)      # [height]
+    gradient = gradient.unsqueeze(1).repeat(1, width)          # [height, width]
+
+    # 2) Colorize with your function → shape [3, height, width]
+    legend_tensor = apply_color_map_to_image(gradient, color_map="turbo_r")
+
+    # 3) Convert to H×W×3 NumPy for plotting
+    legend_np = legend_tensor.permute(1, 2, 0).cpu().numpy()
+
+    # 4) Plot & save as an image
+    plt.figure(figsize=(1.5, 6), facecolor='white')
+    plt.imshow(legend_np, origin='lower', aspect='auto')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('colorbar_legend.png', dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.show()
