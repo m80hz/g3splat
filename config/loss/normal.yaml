@@ -10,6 +10,6 @@ normal:
 
   valid_threshold: 0.1
   depth_valid_threshold: 1e-3
-  depth_disc_multiplier: 1.0
+  depth_disc_multiplier: 3.0
   depth_disc_slope: 0.2
   huber_delta: 0.1

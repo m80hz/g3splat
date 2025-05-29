@@ -44,11 +44,15 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         global_step: int,
     ) -> Float[Tensor, ""]:
         
+        # -----------------------------------
+        # Context View Loss
+        # -----------------------------------
         if self.cfg.lambda_context_views_normal == 0.0:
             context_view_loss = torch.tensor(0.0, device=prediction.depth.device)
         else:
             # Extract image dimensions; batch["context"]["image"] shape: (B, V, C, H, W), V == 2.
             B, V, C, H, W = batch["context"]["image"].shape
+            eps = 1e-6  # small constant for numerical stability
 
             # # Reshape gaussians.means into (B, V, H, W, 3)
             all_pts3d = rearrange(gaussians.means, "b (v h w) d -> (b v) h w d", h=H, w=W)    # (B*V, H, W, 3)
@@ -59,13 +63,12 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             # extract gaussian normals from their rotation quaternion
             gaussian_rotations = rearrange(gaussians.rotations, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)     # shape (B*V, H, W, 4)
             # Normalize the quaternions to ensure they are unit quaternions.
-            gaussian_rotations_normalised = gaussian_rotations / gaussian_rotations.norm(dim=-1, keepdim=True)
+            gaussian_rotations_normalised = gaussian_rotations / (gaussian_rotations.norm(dim=-1, keepdim=True) + eps)
             # Convert quaternions to rotation matrices. The resulting shape is (B*V, H, W, 3, 3).
             gaussian_rot_matrices = quaternion_to_matrix(gaussian_rotations_normalised)
             # Extract the third column from each rotation matrix, which represents the surfel normal.
             gs_surfel_normals = gaussian_rot_matrices[..., :, 2]  # shape: (B*V, H, W, 3)
 
-            eps = 1e-6  # small constant for numerical stability
             norm_surf_ptc = torch.norm(surf_normals_ptc, dim=-1, keepdim=True)  # (B*V, H, W, 1)
             norm_gs_surfels = torch.norm(gs_surfel_normals, dim=-1, keepdim=True)  # (B*V, H, W, 1)
 
@@ -101,29 +104,33 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
                 depth_maps.append(cam_v[:, 2, :, :])                    # (B,H,W)
             depth_map = torch.stack(depth_maps, dim=1)      # (B, V, H, W)
             
-            # Compute per-view soft masks exactly like GridLoss
+            # Compute per-view soft masks
             soft_masks = []
             for v in range(V):
                 d = depth_map[:, v].float()                  # (B,H,W)
                 flat = d.view(B, -1)
                 med = flat.median(dim=1)[0].view(B,1,1)
-                std = flat.std(dim=1).view(B,1,1)
+                std = flat.std(dim=1).view(B,1,1).clamp(min=1e-3)
                 dn = (d - med) / (std + eps)              # normalize
                 gx = torch.abs(dn[:, :, 1:] - dn[:, :, :-1])
                 gx = F.pad(gx, (0,1), mode="replicate")
                 gy = torch.abs(dn[:, 1:, :] - dn[:, :-1, :])
                 gy = F.pad(gy, (0,0,0,1), mode="replicate")
-                gm = torch.sqrt(gx**2 + gy**2)               # gradient magnitude
+                gm = torch.sqrt(gx**2 + gy**2 + eps)               # gradient magnitude
 
                 thr = torch.median(gm.view(B,-1), dim=1)[0].view(B,1,1)
                 thr = thr * self.cfg.depth_disc_multiplier
-                sm  = 1.0 / (1.0 + torch.exp((gm - thr) / self.cfg.depth_disc_slope))
+                x = ((gm - thr) / self.cfg.depth_disc_slope).clamp(-50, 50)
+                # sm  = 1.0 / (1.0 + torch.exp(x))
+                sm = torch.sigmoid(-x)    # numerically equivalent to 1/(1+exp(x)), but more stable
                 soft_masks.append(sm)                        # (B,H,W)
+                
             soft_mask = torch.stack(soft_masks, dim=1)       # (B,V,H,W)
 
             norm_s = surf_normals_ptc_normed.norm(dim=-1)                             # (B,V,H,W)
-            norm_g = gs_surfel_normals_normed.norm(dim=-1)                               # (B,V,H,W)
+            norm_g = gs_surfel_normals_normed.norm(dim=-1)                            # (B,V,H,W)
             valid_normal_mask = ((norm_s > self.cfg.valid_threshold) & (norm_g > self.cfg.valid_threshold)).float()
+            valid_depth_mask = (depth_map > self.cfg.depth_valid_threshold).float()   # (B, V, H, W)
 
             # Compute the dot product per pixel
             dot_product = torch.sum(surf_normals_ptc_normed * gs_surfel_normals_normed, dim=-1)  # (B, V, H, W)
@@ -136,11 +143,26 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
                 reduction='none', 
                 beta=self.cfg.huber_delta
             )
-            combined_mask = soft_mask * valid_normal_mask                  # (B,V,H,W)
+            combined_mask = (soft_mask * valid_normal_mask * valid_depth_mask).detach()                  # (B,V,H,W)
+            # create a dummy all-ones mask for the context views
+            # combined_mask = torch.ones_like(loss_per_pixel)  # (B, V, H, W)
+            # Average the loss over the valid pixels (avoid division by zero).
             masked_loss = loss_per_pixel * combined_mask
-            context_view_loss = self.cfg.lambda_context_views_normal * masked_loss.mean()
-        
+            loss_sum = masked_loss.sum()  # sum over all pixels
+            valid_count = combined_mask.sum() + eps
+            normal_consistency_loss = loss_sum / valid_count
+            
+            # Apply the context view loss weight.
+            context_view_loss = self.cfg.lambda_context_views_normal * normal_consistency_loss
 
+            # If the number of valid pixels is too low, set the loss to zero. (safeguard)
+            if valid_count < 100:
+                context_view_loss = torch.tensor(0.0, device=prediction.depth.device)
+
+
+        # -----------------------------------
+        # Novel View Loss
+        # -----------------------------------
         if not self.cfg.on_novel_views:
             novel_view_loss = torch.tensor(0.0, device=prediction.depth.device)
         else:
@@ -186,7 +208,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             # Compute median and standard deviation per image (flattening spatial dimensions)
             depth_flat = depth.view(B, -1)
             depth_median = depth_flat.median(dim=1)[0].view(B, 1, 1)
-            depth_std = depth_flat.std(dim=1).view(B, 1, 1)
+            depth_std = depth_flat.std(dim=1).view(B, 1, 1).clamp(min=1e-3)
             depth_norm = (depth - depth_median) / (depth_std + eps)  # (B, H, W)
 
             # Compute spatial gradients of the normalized depth using finite differences.
@@ -196,7 +218,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             grad_y = F.pad(grad_y, (0, 0, 0, 1), mode='replicate')
 
             # Compute gradient magnitude.
-            grad_mag = torch.sqrt(grad_x ** 2 + grad_y ** 2)  # (B, H, W)
+            grad_mag = torch.sqrt(grad_x ** 2 + grad_y ** 2 + eps)  # (B, H, W)
             
             # Compute an adaptive threshold per image based on the median gradient magnitude.
             adaptive_threshold = torch.median(grad_mag.view(B, -1), dim=1)[0].view(B, 1, 1)
@@ -205,13 +227,14 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             # Create a soft mask: pixels with gradient magnitude much lower than the adaptive threshold have weight ~1,
             # while those with high gradient magnitude are downweighted.
             # Using a sigmoid function for smooth transition.
-            soft_mask = 1.0 / (1.0 + torch.exp((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope))    # soft_mask: shape (B, H, W)
+            # soft_mask = 1.0 / (1.0 + torch.exp((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope))    # soft_mask: shape (B, H, W)
+            x = ((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope).clamp(-50, 50)
+            soft_mask = torch.sigmoid(-x)    # numerically equivalent to 1/(1+exp(x)), but more stable
+
             
             # Incorporate the soft mask into the overall validity mask.
             final_valid_mask = valid_mask * soft_mask.unsqueeze(1)  # (B, 1, H, W)
-            # Check if the number of valid pixels is below a threshold (e.g., 100 pixels).
-            if final_valid_mask.sum().item() < 100:
-                return torch.tensor(0.0, device=prediction.depth.device)
+            final_valid_mask = final_valid_mask.detach()  # Detach to avoid gradients through the mask
 
         
             # -------------------------------
@@ -242,12 +265,17 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             valid_count = final_valid_mask.sum() + eps
             normal_consistency_loss = loss_sum / valid_count
             total_normal_loss = lambda_novel_views_normal * normal_consistency_loss
-
-            # dist_loss = lambda_novel_views_dist * (rend_dist).mean()
-
             novel_view_loss = total_normal_loss
+            # -------------------------------
+            # dist_loss = lambda_novel_views_dist * (rend_dist).mean()
+            # novel_view_loss += dist_loss
+            # -------------------------------
+            # If the number of valid pixels is too low, set the loss to zero. (safeguard)
+            if valid_count < 100:
+                novel_view_loss = torch.tensor(0.0, device=prediction.depth.device)
         
-       
+        
+        # Combine context view loss and novel view loss.
         total_loss = context_view_loss + novel_view_loss
         
         return total_loss
