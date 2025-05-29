@@ -106,13 +106,17 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
 
                 # combined magnitude for unified soft mask
                 gm = torch.sqrt(gx ** 2 + gy ** 2 + eps)
-                thr = torch.median(gm.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
-                sm = torch.sigmoid(-((gm - thr) / self.cfg.depth_disc_slope).clamp(-50, 50))
+                thr_g = torch.median(gm.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
+                sm = torch.sigmoid(-((gm - thr_g) / self.cfg.depth_disc_slope).clamp(-50, 50))
                 soft_masks.append(sm)
 
-                # directional weights from gx, gy separately (detached)
-                wx = torch.sigmoid(-((gx - thr) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
-                wy = torch.sigmoid(-((gy - thr) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
+                # **separate thresholds per axis**
+                thr_x = torch.median(gx.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
+                thr_y = torch.median(gy.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
+
+                # directional weights (detached)
+                wx = torch.sigmoid(-((gx - thr_x) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
+                wy = torch.sigmoid(-((gy - thr_y) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
                 w_x_list.append(wx)
                 w_y_list.append(wy)
 
@@ -125,7 +129,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             vn = surf_normals.norm(dim=-1) > self.cfg.valid_threshold
             vg = gs_normals.norm(dim=-1)   > self.cfg.valid_threshold
             vd = depth_map > self.cfg.depth_valid_threshold
-            valid = (vn & vg & vd).float()
+            valid = (vn & vg & vd).float().detach()  
             valid_mask = (valid * soft_mask).detach()
             
             # -- normal consistency loss --
@@ -146,7 +150,9 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             diff_y = gs_c[..., :, 1:, :] - gs_c[..., :, :-1, :]  # (B,V,3,H-1,W)
             last_row = diff_y[..., :, -1:, :].clone()            # replicate last row
             dy_n = torch.cat([diff_y, last_row], dim=3)          # (B,V,3,H,W)
-            dx_abs = dx_n.abs().sum(dim=2)
+            
+            # aggregate magnitude per pixel
+            dx_abs = dx_n.abs().sum(dim=2)  # (B, V, H, W)
             dy_abs = dy_n.abs().sum(dim=2)
 
             smooth_x = (dx_abs * w_x * valid_mask).sum() / ((w_x * valid_mask).sum() + eps)

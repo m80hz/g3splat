@@ -80,10 +80,12 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
             return proj, depth
 
         # loop over views
+        used_view_counter = 0
         for v in range(V):
             K = intrinsics[:,v]  # (B,3,3)
             pts_cam0 = all_pts3d[:, v]    # (B,H,W,3)
             proj, depth = project_cam0_to_camv(pts_cam0, v, K)
+            proj = torch.nan_to_num(proj) 
 
             # alignment L2 (optionally with Huber)
             diff = proj - grid_flat.unsqueeze(0)
@@ -111,7 +113,12 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
                 continue
             
             # negative-depth penalty
-            L_negz = torch.clamp(-depth, min=0).mean()
+            neg_mask = (depth.squeeze(-1) < 0)
+            neg_mask = (depth.squeeze(-1) < 0)
+            if neg_mask.any():
+                L_negz = depth[neg_mask].abs().mean()
+            else:
+                L_negz = depth.new_tensor(0.0)
 
             # average alignment over all valid depth pixels
             L_align = (err * mask).sum() / (Nvalid + eps)
@@ -119,11 +126,14 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
             total_align += L_align
             # total_hinge += L_hinge
             total_negz  += L_negz
+            
+            used_view_counter += 1
         
-        # average across views
-        mean_align = total_align / V
-        # mean_hinge = total_hinge / V
-        mean_negz  = total_negz  / V
+        # average across used views
+        views_used = max(1, used_view_counter)
+        mean_align = total_align / views_used
+        # mean_hinge = total_hinge / views_used
+        mean_negz  = total_negz  / views_used
 
         # total_loss = lambda_grid * (mean_align + self.cfg.hinge_coef * mean_hinge + self.cfg.neg_depth_coef * mean_negz)        
         total_loss = lambda_grid * (mean_align + self.cfg.neg_depth_coef * mean_negz)        
@@ -218,7 +228,7 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
             K_4x4 = K.clone()
         points3d_flat = points3d.view(B, C, -1)  # (B, 4, H*W)
         points2d = torch.bmm(K_4x4[:, :3, :], points3d_flat)  # (B, 3, H*W)
-        xy = points2d[:, :2, :] / (points2d[:, 2:3, :] + eps)
+        xy = points2d[:, :2, :] / torch.clamp(points2d[:, 2:3, :], eps)
         xy = xy.view(B, 2, H, W).permute(0, 2, 3, 1)  # (B, H, W, 2)
         if normalize:
             # already normalised intrinsics
