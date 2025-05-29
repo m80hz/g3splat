@@ -1,3 +1,6 @@
 grid:
   lambda_grid: 0.1
   apply_grid_after_step: 0
+  # hinge_coef: 0.01
+  neg_depth_coef: 0.01
+  huber_delta: 0.1
