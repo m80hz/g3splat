@@ -1,7 +1,7 @@
 normal:
 
-  lambda_context_views_normal: 0.05
-  lambda_context_normal_smoothness: 0.003
+  lambda_context_views_normal: 0.25
+  lambda_context_normal_smoothness: 0.015
 
   on_novel_views: false
   lambda_novel_views_normal: 0.05

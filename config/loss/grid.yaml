@@ -1,5 +1,5 @@
 grid:
-  lambda_grid: 0.1
+  lambda_grid: 0.5
   apply_grid_after_step: 0
   huber_delta: 0.0
   # hinge_coef: 0.01
