@@ -15,9 +15,9 @@ from .loss import Loss
 class LossGridCfg:
     lambda_grid: float
     apply_grid_after_step: int
+    huber_delta: float = 0.0         # optional huber on grid error (pixel_delta / (W - 1))
     # hinge_coef: float = 0.1         # weight for out-of-bounds hinge
-    neg_depth_coef: float = 0.1     # weight for negative-depth penalty
-    huber_delta: float = 0.01       # optional huber on grid error (pixel_delta / (W - 1))
+    # neg_depth_coef: float = 0.1     # weight for negative-depth penalty
 
 @dataclass
 class LossGridCfgWrapper:
@@ -58,7 +58,7 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
 
         total_align = 0.0
         # total_hinge = 0.0
-        total_negz  = 0.0
+        # total_negz  = 0.0
         eps = 1e-6
         
         # helper: project from cam0 frame to cam-v
@@ -94,49 +94,44 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
             else:
                 err = diff.pow(2).sum(-1, keepdim=True)
 
-            # # valid mask: in [-1,1] and z>0
-            # valid = ((proj[...,0].abs() <= 1) & (proj[...,1].abs() <= 1) & (depth.squeeze(-1) > 0))
-            # valid = valid.float().unsqueeze(-1)  # (B, N, 1)
-            # Nvalid = valid.sum()
-            # if Nvalid < 100:
-            #     continue
-
             # # hinge for out-of-bounds (u,v >1)
             # over_u = torch.clamp(proj[...,0].abs() - 1, min=0, max=2)   # clamp to [0,2] in normalized coordinates
             # over_v = torch.clamp(proj[...,1].abs() - 1, min=0, max=2)   # clamp to [0,2] in normalized coordinates
             # L_hinge = (over_u.pow(2) + over_v.pow(2)).mean()
+            # total_hinge += L_hinge
             
-            # Mask: only positive depth
-            mask = (depth.squeeze(-1) > 0).float().unsqueeze(-1)        # (B, N, 1)
+            # # negative-depth penalty
+            # neg_mask = (depth.squeeze(-1) < 0)
+            # if neg_mask.any():
+            #     L_negz = depth[neg_mask].abs().mean()
+            # else:
+            #     L_negz = depth.new_tensor(0.0)
+
+            # total_negz  += L_negz
+            
+            # valid mask: in [-1,1] and z>0
+            mask = ((proj[...,0].abs() <= 1) & (proj[...,1].abs() <= 1) & (depth.squeeze(-1) > 0))
+            mask = mask.float().unsqueeze(-1)  # (B, N, 1)
             Nvalid = mask.sum()
             if Nvalid < 100:
                 continue
-            
-            # negative-depth penalty
-            neg_mask = (depth.squeeze(-1) < 0)
-            neg_mask = (depth.squeeze(-1) < 0)
-            if neg_mask.any():
-                L_negz = depth[neg_mask].abs().mean()
-            else:
-                L_negz = depth.new_tensor(0.0)
 
             # average alignment over all valid depth pixels
             L_align = (err * mask).sum() / (Nvalid + eps)
 
             total_align += L_align
-            # total_hinge += L_hinge
-            total_negz  += L_negz
-            
+
             used_view_counter += 1
         
         # average across used views
         views_used = max(1, used_view_counter)
         mean_align = total_align / views_used
         # mean_hinge = total_hinge / views_used
-        mean_negz  = total_negz  / views_used
+        # mean_negz  = total_negz  / views_used
 
         # total_loss = lambda_grid * (mean_align + self.cfg.hinge_coef * mean_hinge + self.cfg.neg_depth_coef * mean_negz)        
-        total_loss = lambda_grid * (mean_align + self.cfg.neg_depth_coef * mean_negz)        
+        # total_loss = lambda_grid * (mean_align + self.cfg.neg_depth_coef * mean_negz)        
+        total_loss = lambda_grid * mean_align        
         
         
         # Reshape gaussians.means into (B, V, H, W, 3)
@@ -298,7 +293,7 @@ if __name__ == "__main__":
     pts3d_view = pts3d_view.unsqueeze(0).unsqueeze(0).repeat(B, V, 1, 1, 1)  # (B,V,H,W,3)
     gaussians = rearrange(pts3d_view, "b v h w d -> b (v h w) d")
     
-    cfg = LossGridCfgWrapper(grid=LossGridCfg(lambda_grid=0.1, apply_grid_after_step=0, hinge_coef=0.1, neg_depth_coef=0.1, huber_delta=0.5))
+    cfg = LossGridCfgWrapper(grid=LossGridCfg(lambda_grid=0.1, apply_grid_after_step=0, huber_delta=0.0))
     loss_module = LossGrid(cfg=cfg)
     
     # loss_module = LossGrid()

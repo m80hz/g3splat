@@ -26,9 +26,9 @@ class LossNormalCfg:
     apply_distortion_after_step: int
     valid_threshold: float = 1e-1  
     depth_valid_threshold: float = 1e-3
-    depth_disc_multiplier: float = 1.5
+    depth_disc_multiplier: float = 3.0
     depth_disc_slope: float = 0.1
-    huber_delta: float = 0.1
+    huber_delta: float = 0.1        # in cosine space
 
 
 @dataclass
@@ -107,16 +107,16 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
                 # combined magnitude for unified soft mask
                 gm = torch.sqrt(gx ** 2 + gy ** 2 + eps)
                 thr_g = torch.median(gm.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
-                sm = torch.sigmoid(-((gm - thr_g) / self.cfg.depth_disc_slope).clamp(-50, 50))
+                sm = torch.sigmoid(-((gm - thr_g) / self.cfg.depth_disc_slope).clamp(-40, 40))
                 soft_masks.append(sm)
 
                 # **separate thresholds per axis**
-                thr_x = torch.median(gx.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
-                thr_y = torch.median(gy.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier
+                thr_x = torch.median(gx.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier * 2.0  # to put less weight near weaker depth edges
+                thr_y = torch.median(gy.view(B, -1), dim=1)[0].view(B, 1, 1) * self.cfg.depth_disc_multiplier * 2.0
 
                 # directional weights (detached)
-                wx = torch.sigmoid(-((gx - thr_x) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
-                wy = torch.sigmoid(-((gy - thr_y) / self.cfg.depth_disc_slope).clamp(-50, 50)).detach()
+                wx = torch.sigmoid(-((gx - thr_x) / self.cfg.depth_disc_slope).clamp(-40, 40)).detach()
+                wy = torch.sigmoid(-((gy - thr_y) / self.cfg.depth_disc_slope).clamp(-40, 40)).detach()
                 w_x_list.append(wx)
                 w_y_list.append(wy)
 
@@ -233,7 +233,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
             # while those with high gradient magnitude are downweighted.
             # Using a sigmoid function for smooth transition.
             # soft_mask = 1.0 / (1.0 + torch.exp((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope))    # soft_mask: shape (B, H, W)
-            x = ((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope).clamp(-50, 50)
+            x = ((grad_mag - adaptive_threshold) / self.cfg.depth_disc_slope).clamp(-40, 40)
             soft_mask = torch.sigmoid(-x)    # numerically equivalent to 1/(1+exp(x)), but more stable
 
             
