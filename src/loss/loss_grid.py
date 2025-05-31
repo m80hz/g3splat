@@ -56,9 +56,9 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
         grid_norm = (grid_int.float() / torch.tensor([W-1, H-1], device=device).view(1,1,2) - 0.5) * 2    # map to [-1, 1]
         grid_flat = grid_norm.view(-1, 2)  # (N,2)
 
-        total_align = 0.0
-        # total_hinge = 0.0
-        # total_negz  = 0.0
+        total_align = torch.tensor(0.0, device=device)
+        # total_hinge = torch.tensor(0.0, device=device)
+        # total_negz  = torch.tensor(0.0, device=device)
         eps = 1e-6
         
         # helper: project from cam0 frame to cam-v
