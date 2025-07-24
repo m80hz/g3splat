@@ -1,7 +1,7 @@
 normal:
 
   lambda_context_views_normal: 0.05
-  lambda_context_normal_smoothness: 0.002
+  lambda_context_normal_smoothness: 0.0
 
   on_novel_views: false
   lambda_novel_views_normal: 0.05
@@ -12,5 +12,5 @@ normal:
   valid_threshold: 0.1
   depth_valid_threshold: 1e-3
   depth_disc_multiplier: 3.0         # increase for stronger edge detection
-  depth_disc_slope: 0.1              # decrease for narrower sigmoid
+  depth_disc_slope: 0.2              # decrease for narrower sigmoid
   huber_delta: 0.1                   # decrease for sharper angular error

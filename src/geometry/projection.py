@@ -304,6 +304,6 @@ def points_to_normal(points):
     dx = pts_p[:, 1:-1, 2:, :] - pts_p[:, 1:-1, :-2, :]
     
     normal_map = torch.nn.functional.normalize(torch.cross(dy, dx, dim=-1), dim=-1)
-    # normals[:, 1:-1, 1:-1, :] = normal_map
-    normals[:, :, :, :] = normal_map  # includes edges
+    normals[:, :, :, :] = normal_map  # includes image edges
+    
     return normals

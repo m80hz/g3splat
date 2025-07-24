@@ -130,84 +130,8 @@ class LossGrid(Loss[LossGridCfg, LossGridCfgWrapper]):
         # mean_negz  = total_negz  / views_used
 
         # total_loss = lambda_grid * (mean_align + self.cfg.hinge_coef * mean_hinge + self.cfg.neg_depth_coef * mean_negz)        
-        # total_loss = lambda_grid * (mean_align + self.cfg.neg_depth_coef * mean_negz)        
         total_loss = lambda_grid * mean_align        
-        
-        
-        # Reshape gaussians.means into (B, V, H, W, 3)
-        # all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=H, w=W)
-        # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
-        # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
-
-        # Retrieve intrinsics and extrinsics.
-        # intrinsics = batch["context"]["intrinsics"]  # (B, V, 3, 3)
-        # extrinsics = batch["context"]["extrinsics"]  # (B, V, 4, 4)
-        # intr0 = intrinsics[:, 0, :, :]  # for view1
-        # intr1 = intrinsics[:, 1, :, :]  # for view2
-        # T1 = extrinsics[:, 0, :, :]     # view1 extrinsics (camera-to-world)
-        # T2 = extrinsics[:, 1, :, :]     # view2 extrinsics (camera-to-world)
-
-        # device = pts3d1.device
-
-        # Helper: convert (B, H, W, 3) to homogeneous coordinates (B, 4, H, W)
-        # def pts3d_to_hom(pts: Tensor) -> Tensor:
-        #     B, H, W, _ = pts.shape
-        #     ones = torch.ones(B, H, W, 1, device=pts.device, dtype=pts.dtype)
-        #     pts_h = torch.cat([pts, ones], dim=-1)  # (B, H, W, 4)
-        #     return pts_h.permute(0, 3, 1, 2)         # (B, 4, H, W)
-
-        # # --- For view1 ---
-        # pts3d1_h = pts3d_to_hom(pts3d1)  # (B, 4, H, W)
-        # # Safety: even if pts3d1 are in view1’s frame, we use T1 (camera-to-world) then its inverse.
-        # world_pts1 = torch.bmm(T1, pts3d1_h.view(B, 4, -1)).view(B, 4, H, W)
-        # T1_inv = torch.inverse(T1)
-        # pts1_cam = torch.bmm(T1_inv, world_pts1.view(B, 4, -1)).view(B, 4, H, W)
-        # proj_view1 = self.project_pts3d_to_px2d(pts1_cam, intr0, eps=1e-4, normalize=True)
-        # proj_view1_flat = proj_view1.view(B, -1, 2)
-        # proj_view1_flat = torch.nan_to_num(proj_view1_flat, nan=0.0)
-        # # Also safeguard: use depth from view1 (z coordinate from pts1_cam)
-        # depth1 = pts1_cam[:, 2, :, :].view(B, -1, 1)
-        
-        # # --- For view2 ---
-        # # Compute relative transformation: T_rel = T2^{-1} * T1 maps points from view1's frame to view2's camera coordinates.
-        # T2_inv = torch.inverse(T2)
-        # T_rel = torch.bmm(T2_inv, T1)  # (B, 4, 4)
-        # pts3d2_h = pts3d_to_hom(pts3d2)  # (B, 4, H, W)
-        # pts2_cam = torch.bmm(T_rel, pts3d2_h.view(B, 4, -1)).view(B, 4, H, W)
-        # proj_view2 = self.project_pts3d_to_px2d(pts2_cam, intr1, eps=1e-4, normalize=True)
-        # proj_view2_flat = proj_view2.view(B, -1, 2)
-        # proj_view2_flat = torch.nan_to_num(proj_view2_flat, nan=0.0)
-        # depth2 = pts2_cam[:, 2, :, :].view(B, -1, 1)
-
-        # # Create target grid using xy_grid, then normalize it.
-        # grid_int = self.xy_grid(W, H, device=device, cat_dim=-1, homogeneous=False)  # (H, W, 2) with integer values in [0, W-1] & [0, H-1]
-        # grid_norm = grid_int.float() / torch.tensor([W - 1, H - 1], device=device).reshape(1, 1, 2)
-        # grid_norm = (grid_norm - 0.5) * 2  # map to [-1, 1]
-        # grid_flat = grid_norm.view(-1, 2)   # (N, 2)
-        
-
-        # # Compute loss for each view. Here, we only consider points with valid projection (in [-1,1]) and positive depth.
-        # def compute_view_loss(proj: Tensor, grid: Tensor, depth: Tensor) -> Tensor:
-        #     valid_mask = ((proj[..., 0] >= -1) & (proj[..., 0] <= 1) &
-        #                   (proj[..., 1] >= -1) & (proj[..., 1] <= 1)).unsqueeze(-1) & (depth > 0)  # (B, N, 1)
-        #     num_valid = valid_mask.float().sum()
-        #     if num_valid < 100:
-        #         return torch.tensor(0.0, device=proj.device)
-        #     diff = proj - grid.unsqueeze(0)
-        #     sq_err = diff.pow(2).sum(dim=-1, keepdim=True)
-        #     sq_err = sq_err * valid_mask.float()
-        #     eps = 1e-6
-        #     loss = sq_err.sum() / (num_valid + eps)
-        #     return loss
-
-        # loss_view1 = compute_view_loss(proj_view1_flat, grid_flat, depth1)
-        # loss_view2 = compute_view_loss(proj_view2_flat, grid_flat, depth2)
-        # total_loss = lambda_grid * (loss_view1 + loss_view2)
-        
-        # print(f"loss_view1 = {loss_view1.item()}")
-        # print(f"loss_view2 = {loss_view2.item()}")
-        # print(f"total_loss = {total_loss.item()}")
-        
+                
         return total_loss
 
     def project_pts3d_to_px2d(self, points3d: Tensor, K: Tensor, eps: float = 1.e-4, normalize: bool = True) -> Tensor:
@@ -295,9 +219,6 @@ if __name__ == "__main__":
     
     cfg = LossGridCfgWrapper(grid=LossGridCfg(lambda_grid=0.1, apply_grid_after_step=0, huber_delta=0.0))
     loss_module = LossGrid(cfg=cfg)
-    
-    # loss_module = LossGrid()
-    # loss_module.cfg = LossGridCfg(lambda_grid=1.0, apply_grid_after_step=0)
     
     # Forward pass to compute grid loss.
     gaussians = Gaussians(means=gaussians, covariances=None, rotations=None, scales=None, harmonics=None, opacities=None)
