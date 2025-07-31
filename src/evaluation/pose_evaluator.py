@@ -168,19 +168,19 @@ class PoseEvaluator(LightningModule):
 
         return 0
 
-    def calculate_auc(self, tot_e_pose, method_name, overlap_tag):
-        thresholds = [5, 10, 20]
-        auc = pose_auc(tot_e_pose, thresholds)
-        print(f"Pose AUC {method_name} {overlap_tag}: ")
-        print(auc)
-        return auc
+    # def calculate_auc(self, tot_e_pose, method_name, overlap_tag):
+    #     thresholds = [5, 10, 20, 30]
+    #     auc = pose_auc(tot_e_pose, thresholds)
+    #     print(f"Pose AUC {method_name} {overlap_tag}: ")
+    #     print(auc)
+    #     return auc
 
     def on_test_end(self) -> None:
         # eval pose
         for method in self.cfg.methods:
             tot_e_pose = np.array(self.all_mertrics[f"e_pose_{method.key}"])
             tot_e_pose = np.array(tot_e_pose)
-            thresholds = [5, 10, 20]
+            thresholds = [5, 10, 20, 30]
             auc = pose_auc(tot_e_pose, thresholds)
             print(f"Pose AUC {method.key}: ")
             print(auc)
@@ -188,7 +188,7 @@ class PoseEvaluator(LightningModule):
             for overlap_tag in self.all_mertrics_sub.keys():
                 tot_e_pose = np.array(self.all_mertrics_sub[overlap_tag][f"e_pose_{method.key}"])
                 tot_e_pose = np.array(tot_e_pose)
-                thresholds = [5, 10, 20]
+                thresholds = [5, 10, 20, 30]
                 auc = pose_auc(tot_e_pose, thresholds)
                 print(f"Pose AUC {method.key} {overlap_tag}: ")
                 print(auc)
