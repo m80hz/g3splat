@@ -61,6 +61,8 @@ test:
   save_video: false
   save_compare: false
   save_gaussian: false
+  save_mesh: false
+
 
 seed: 111123
 

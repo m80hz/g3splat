@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable, Any
 
+import os
 import moviepy.editor as mpy
 import torch
 import wandb
@@ -12,6 +13,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from lightning.pytorch.utilities import rank_zero_only
 from tabulate import tabulate
 from torch import Tensor, nn, optim
+import open3d as o3d
 
 from ..dataset.data_module import get_data_shim
 from ..dataset.types import BatchedExample
@@ -47,6 +49,7 @@ from ..geometry.surface_normal import surface_normal_from_depth, get_surface_nor
 from ..geometry.projection import points_to_normal
 from .encoder.common.gaussians import quaternion_to_matrix
 from .ply_export import save_gaussian_ply
+from ..misc.mesh_utils import GaussianMeshExtractor, post_process_mesh
 
 @dataclass
 class OptimizerCfg:
@@ -67,6 +70,7 @@ class TestCfg:
     save_video: bool
     save_compare: bool
     save_gaussian: bool
+    save_mesh: bool
     
 
 
@@ -411,6 +415,60 @@ class ModelWrapper(LightningModule):
 
             for index, alpha in zip(batch["target"]["index"][0], rend_alpha):
                 save_image(alpha, path / scene / f"targets_rendered_alphas/{index:0>6}.png")
+
+        
+        if self.test_cfg.save_mesh:
+
+            def trajectory_fn(t):
+                extrinsics = interpolate_extrinsics(
+                    batch["context"]["extrinsics"][0, 0],
+                    (
+                        batch["context"]["extrinsics"][0, 1]
+                        if v == 2
+                        else batch["target"]["extrinsics"][0, 0]
+                    ),
+                    t,
+                )
+                intrinsics = interpolate_intrinsics(
+                    batch["context"]["intrinsics"][0, 0],
+                    (
+                        batch["context"]["intrinsics"][0, 1]
+                        if v == 2
+                        else batch["target"]["intrinsics"][0, 0]
+                    ),
+                    t,
+                )
+                return extrinsics[None], intrinsics[None]            
+
+            # smooth trajectory
+            num_frames_traj = 20
+            t = torch.linspace(0, 1, num_frames_traj, dtype=torch.float32, device=self.device)
+            t = (torch.cos(torch.pi * (t + 1)) + 1) / 2
+
+            extrinsics_traj, intrinsics_traj = trajectory_fn(t)
+            
+            near_traj = repeat(batch["context"]["near"][:, 0], "b -> b v", v=num_frames_traj)
+            far_traj = repeat(batch["context"]["far"][:, 0], "b -> b v", v=num_frames_traj)
+            output_traj = self.decoder.forward(gaussians, extrinsics_traj, intrinsics_traj, near_traj, far_traj, (h, w))
+            
+            mesh_extractor = GaussianMeshExtractor(output_traj, intrinsics_traj, extrinsics_traj, near_traj, far_traj, scale_invariant=True)
+            mesh_extractor.estimate_bounding_sphere()
+
+            voxel_size = 0.004
+            sdf_trunc = 0.016
+            depth_trunc = 3.0
+
+            ## initialize the class to estimate the bounding sphere
+            mesh = mesh_extractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
+
+            mesh_path = path / scene / "mesh" / "bounded.ply"
+            mesh_path.parent.mkdir(exist_ok=True, parents=True)
+            o3d.io.write_triangle_mesh(mesh_path, mesh)
+
+            # post-process the mesh and save, saving the largest N clusters
+            mesh_post = post_process_mesh(mesh, cluster_to_keep=1)
+            mesh_path = Path(path) / scene / "mesh" / "bounded_post.ply"
+            o3d.io.write_triangle_mesh(mesh_path, mesh_post)
 
 
         if self.test_cfg.save_video:
