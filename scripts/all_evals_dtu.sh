@@ -360,6 +360,7 @@ CUDA_VISIBLE_DEVICES=1 python -m src.main \
                         dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
                         dataset.re10k.view_sampler.index_path=assets/evaluation_index_dtu.json \
                         test.save_image=true \
+                        test.save_mesh=true \
                         checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v3_gaussians_hpc_2025-03-16_02-51-15_step_20001.ckpt \
                         > "nvs_dtu_grid_normal_with-pose-refinement_ours_re10k_grid_normal_v3_gaussians_hpc_2025-03-16_02-51-15_step_20001.txt" 2>&1
 

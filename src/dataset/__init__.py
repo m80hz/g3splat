@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 
 from .dataset_scannet_pose import DatasetScannetPose, DatasetScannetPoseCfgWrapper
 from .dataset_scannet_depth import DatasetScannetDepth, DatasetScannetDepthCfgWrapper
+from .dataset_nyud_depth import DatasetNYUDepth, DatasetNYUDepthCfgWrapper
 from ..misc.step_tracker import StepTracker
 from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg, DatasetRE10kCfgWrapper, DatasetDL3DVCfgWrapper, \
     DatasetScannetppCfgWrapper
@@ -17,10 +18,11 @@ DATASETS: dict[str, Dataset] = {
     "scannetpp": DatasetRE10k,
     "scannet_pose": DatasetScannetPose,
     "scannet_depth": DatasetScannetDepth,
+    "nyud_depth": DatasetNYUDepth,
 }
 
 
-DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetScannetPoseCfgWrapper | DatasetScannetDepthCfgWrapper
+DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetScannetPoseCfgWrapper | DatasetScannetDepthCfgWrapper | DatasetNYUDepthCfgWrapper
 DatasetCfg = DatasetRE10kCfg
 
 
