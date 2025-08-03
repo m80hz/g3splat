@@ -149,6 +149,20 @@ class DatasetRE10k(IterableDataset):
                     print(f"Skipped bad example {example['key']}.")  # DL3DV-Full have some bad images
                     continue
 
+                # Load the depths if there is any.
+                if 'depths' in example.keys():
+                    context_depths = [
+                        example['depths'][index.item()] for index in context_indices
+                    ]
+                    target_depths = [
+                        example["depths"][index.item()] for index in target_indices
+                    ]
+                    assert context_depths[0].shape == context_images[0].shape[1:]
+                    ## resize depths ##
+                else:
+                    context_depths = None
+                    target_depths = None
+
                 # Skip the example if the images don't have the right shape.
                 context_image_invalid = context_images.shape[1:] != (3, *self.cfg.original_image_shape)
                 target_image_invalid = target_images.shape[1:] != (3, *self.cfg.original_image_shape)

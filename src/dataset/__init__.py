@@ -13,6 +13,7 @@ from .view_sampler import get_view_sampler
 DATASETS: dict[str, Dataset] = {
     "re10k": DatasetRE10k,
     "dl3dv": DatasetRE10k,
+    "dtu": DatasetRE10k,
     "scannetpp": DatasetRE10k,
     "scannet_pose": DatasetScannetPose,
     "scannet_depth": DatasetScannetDepth,

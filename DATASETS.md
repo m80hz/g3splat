@@ -55,6 +55,22 @@ Please note that you will need to update the dataset paths in the aforementioned
 If you would like to train on the high-resolution DL3DV dataset, you will need to download the [DL3DV-960P](https://huggingface.co/datasets/DL3DV/DL3DV-ALL-960P) version (540x960 resolution). Simply follow the same procedure for data processing (use the `images_4` folder instead of `images_8`).
 
 
+### DTU (for both training and testing)
+
+* Download the preprocessed DTU training data [dtu_training.rar](https://drive.google.com/file/d/1eDjh-_bxKKnEuz5h-HXS7EDJn59clx6V/view) and [Depth_raw.zip](https://virutalbuy-public.oss-cn-hangzhou.aliyuncs.com/share/cascade-stereo/CasMVSNet/dtu_data/dtu_train_hr/Depths_raw.zip) from original [MVSNet repo](https://github.com/YoYo000/MVSNet).
+
+* Extract 'Cameras/' and 'Rectified/' from the above downloaded 'dtu_training.rar', and extract 'Depths' from the 'Depth_raw.zip'. Link all three folders to `data/DTU`, which should then have the following structure
+
+```bash
+data/DTU/
+    |__ Cameras/
+    |__ Depths/
+    |__ Rectified/
+
+```
+
+* Preprocess DTU by running convert_dtu.py --input_dir=<path_to_original_data> --output_dir=<>
+
 
 ## Additional Datasets
 We also test our method on DTU and ScanNet++ datasets for novel view synthesis, and ScanNet-1500 for pose estimation. We will provide the download link later.

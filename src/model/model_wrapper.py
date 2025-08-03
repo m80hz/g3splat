@@ -397,6 +397,9 @@ class ModelWrapper(LightningModule):
             for index, color in zip(batch["target"]["index"][0], output.color[0]):
                 save_image(color, path / scene / f"targets_color/{index:0>6}.png")
 
+            for index, color in zip(batch["target"]["index"][0], batch["target"]["image"][0]):
+                save_image(color, path / scene / f"targets_color_gt/{index:0>6}.png")
+
             for index, depth in zip(batch["target"]["index"][0], target_rendered_depth):
                 save_image(depth, path / scene / f"targets_rendered_depth/{index:0>6}.png")
 
