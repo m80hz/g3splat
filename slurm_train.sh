@@ -19,7 +19,7 @@ module load GCC/11.2.0
 module use /apps/icl/modules/all
 
 source ~/.bashrc
-conda activate /hpcfs/users/a1733633/project/Gen2DGS/.conda
+conda activate /hpcfs/users/$USER/project/Gen2DGS/.conda
 
 echo "Starting job: $SLURM_JOB_NAME with ID $SLURM_JOB_ID"
 echo "Using TMPDIR: $TMPDIR"
