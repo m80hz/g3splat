@@ -1,5 +1,5 @@
 <p align="center">
-  <h2 align="center">GeoSplat (???)
+  <h2 align="center">GeoSplat
   <br> Geometrically-Consistent Generalizable Splatting </h2>
  <p align="center">
     <a href="https://m80hz.github.io/" target="_blank">Mehdi Hosseinzadeh</a>
