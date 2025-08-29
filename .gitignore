@@ -169,6 +169,8 @@ cython_debug/
 /lightning_logs
 /checkpoints
 results/
+*.txt
+
 
 .bashrc
 /launcher_venv
