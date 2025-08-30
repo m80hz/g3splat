@@ -23,6 +23,8 @@ Options:
   --wandb-name NAME             WandB run name (NVS only, optional)
   --nvs-save-with BOOL          test.save_image in NVS with-refinement run (default: true)
   --nvs-save-without BOOL       test.save_image in NVS without-refinement run (default: false)
+  --dry-run                     Print commands without executing
+  --fail-fast                   Exit immediately on first failure (default: continue and report at end)
   --extra "ARGS"                Extra Hydra overrides to append to ALL runs
   --pose-extra "ARGS"           Extra Hydra overrides to append to pose runs
   --depth-extra "ARGS"          Extra Hydra overrides to append to depth runs
@@ -58,12 +60,19 @@ RUN_WITH_REFINEMENT=true
 INDEX=""
 VIEW_NS="dataset.re10k"
 WANDB_NAME=""
-NVS_SAVE_WITH=true
+NVS_SAVE_WITH=false
 NVS_SAVE_WITHOUT=false
 EXTRA=""
 POSE_EXTRA=""
 DEPTH_EXTRA=""
 NVS_EXTRA=""
+DRY_RUN=false
+FAIL_FAST=false
+# Support repeatable extras via arrays (comma-separated supported)
+EXTRA_LIST=()
+POSE_EXTRA_LIST=()
+DEPTH_EXTRA_LIST=()
+NVS_EXTRA_LIST=()
 
 if [[ $# -eq 0 ]]; then
   print_usage
@@ -94,14 +103,26 @@ while [[ $# -gt 0 ]]; do
       NVS_SAVE_WITH="$2"; shift 2;;
     --nvs-save-without)
       NVS_SAVE_WITHOUT="$2"; shift 2;;
+    --dry-run)
+      DRY_RUN=true; shift 1;;
+    --fail-fast)
+      FAIL_FAST=true; shift 1;;
     --extra)
-      EXTRA="$2"; shift 2;;
+      VAL="$2"; shift 2;
+      if [[ "$VAL" == *,* ]]; then IFS=',' read -r -a TMP <<< "$VAL"; EXTRA_LIST+=("${TMP[@]}"); else EXTRA_LIST+=("$VAL"); fi
+      ;;
     --pose-extra)
-      POSE_EXTRA="$2"; shift 2;;
+      VAL="$2"; shift 2;
+      if [[ "$VAL" == *,* ]]; then IFS=',' read -r -a TMP <<< "$VAL"; POSE_EXTRA_LIST+=("${TMP[@]}"); else POSE_EXTRA_LIST+=("$VAL"); fi
+      ;;
     --depth-extra)
-      DEPTH_EXTRA="$2"; shift 2;;
+      VAL="$2"; shift 2;
+      if [[ "$VAL" == *,* ]]; then IFS=',' read -r -a TMP <<< "$VAL"; DEPTH_EXTRA_LIST+=("${TMP[@]}"); else DEPTH_EXTRA_LIST+=("$VAL"); fi
+      ;;
     --nvs-extra)
-      NVS_EXTRA="$2"; shift 2;;
+      VAL="$2"; shift 2;
+      if [[ "$VAL" == *,* ]]; then IFS=',' read -r -a TMP <<< "$VAL"; NVS_EXTRA_LIST+=("${TMP[@]}"); else NVS_EXTRA_LIST+=("$VAL"); fi
+      ;;
     -h|--help)
       print_usage; exit 0;;
     *)
@@ -149,12 +170,30 @@ build_view_overrides() {
   fi
 }
 
-# Helper to append extras safely
-append_extras() {
-  local -n _dst=$1; shift
-  for var in "$@"; do
-    if [[ -n "$var" ]]; then _dst+=("$var"); fi
-  done
+# Track failures and provide a safe runner
+FAILED=0
+run_cmd() {
+  local desc="$1"; shift
+  local out_file="$1"; shift
+  echo "Running: $desc -> $out_file"
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "DRY-RUN: $*" | tee "$out_file" >/dev/null
+    return 0
+  fi
+  set +e
+  CUDA_VISIBLE_DEVICES=$GPU "$@" > "$out_file" 2>&1
+  local rc=$?
+  set -e
+  if [[ $rc -ne 0 ]]; then
+    echo "ERROR: $desc failed (exit $rc). See $out_file"
+    FAILED=1
+    if [[ "$FAIL_FAST" == true ]]; then
+      exit $rc
+    fi
+  else
+    echo "SUCCESS: $desc"
+  fi
+  return $rc
 }
 
 echo "Running evaluations for checkpoint=$CHECKPOINT experiment=$EXPERIMENT on GPU=$GPU"
@@ -166,16 +205,22 @@ for E in "${EVALS[@]}"; do
       BASE_ARGS=(+experiment="$EXPERIMENT" +evaluation=eval_pose checkpointing.load="$CHECKPOINT")
       build_view_overrides BASE_ARGS
       EXTRA_ARGS=()
-      append_extras EXTRA_ARGS "$EXTRA" "$POSE_EXTRA"
+      # combine legacy single-string flags and repeatable lists
+      [[ -n "$EXTRA" ]] && EXTRA_ARGS+=("$EXTRA")
+      [[ -n "$POSE_EXTRA" ]] && EXTRA_ARGS+=("$POSE_EXTRA")
+      [[ ${#EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${EXTRA_LIST[@]}")
+      [[ ${#POSE_EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${POSE_EXTRA_LIST[@]}")
       # without refinement
       OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-without_pose_refinement-${SAFE_NAME}.txt"
       echo "-> $MODULE ${BASE_ARGS[*]} evaluation.use_pose_refinement=false -> $OUT_FILE"
-      CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" evaluation.use_pose_refinement=false "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+      run_cmd "$MODULE ${BASE_ARGS[*]} evaluation.use_pose_refinement=false" "$OUT_FILE" \
+        python -m $MODULE "${BASE_ARGS[@]}" evaluation.use_pose_refinement=false "${EXTRA_ARGS[@]}"
       # with refinement
       if [[ "$RUN_WITH_REFINEMENT" == true ]]; then
         OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-with_pose_refinement-${SAFE_NAME}.txt"
         echo "-> $MODULE ${BASE_ARGS[*]} (with refinement) -> $OUT_FILE"
-        CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+        run_cmd "$MODULE ${BASE_ARGS[*]} (with refinement)" "$OUT_FILE" \
+          python -m $MODULE "${BASE_ARGS[@]}" "${EXTRA_ARGS[@]}"
       fi
       ;;
     eval_depth)
@@ -183,38 +228,54 @@ for E in "${EVALS[@]}"; do
       BASE_ARGS=(+experiment="$EXPERIMENT" +evaluation=eval_depth checkpointing.load="$CHECKPOINT")
       build_view_overrides BASE_ARGS
       EXTRA_ARGS=()
-      append_extras EXTRA_ARGS "$EXTRA" "$DEPTH_EXTRA"
+      [[ -n "$EXTRA" ]] && EXTRA_ARGS+=("$EXTRA")
+      [[ -n "$DEPTH_EXTRA" ]] && EXTRA_ARGS+=("$DEPTH_EXTRA")
+      [[ ${#EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${EXTRA_LIST[@]}")
+      [[ ${#DEPTH_EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${DEPTH_EXTRA_LIST[@]}")
       # without refinement
       OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-without_pose_refinement-${SAFE_NAME}.txt"
       echo "-> $MODULE ${BASE_ARGS[*]} evaluation.use_pose_refinement=false -> $OUT_FILE"
-      CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" evaluation.use_pose_refinement=false "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+      run_cmd "$MODULE ${BASE_ARGS[*]} evaluation.use_pose_refinement=false" "$OUT_FILE" \
+        python -m $MODULE "${BASE_ARGS[@]}" evaluation.use_pose_refinement=false "${EXTRA_ARGS[@]}"
       # with refinement
       if [[ "$RUN_WITH_REFINEMENT" == true ]]; then
         OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-with_pose_refinement-${SAFE_NAME}.txt"
         echo "-> $MODULE ${BASE_ARGS[*]} (with refinement) -> $OUT_FILE"
-        CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+        run_cmd "$MODULE ${BASE_ARGS[*]} (with refinement)" "$OUT_FILE" \
+          python -m $MODULE "${BASE_ARGS[@]}" "${EXTRA_ARGS[@]}"
       fi
       ;;
     nvs)
       MODULE="src.main"; PREFIX="nvs";
       BASE_ARGS=(+experiment="$EXPERIMENT" mode=test checkpointing.load="$CHECKPOINT")
       build_view_overrides BASE_ARGS
-      if [[ -n "$WANDB_NAME" ]]; then BASE_ARGS+=("wandb.name=$WANDB_NAME"); fi
+      # Ensure default WandB name if not provided
+      if [[ -z "$WANDB_NAME" ]]; then WANDB_NAME="test_${EXPERIMENT}"; fi
+      BASE_ARGS+=("wandb.name=$WANDB_NAME")
       EXTRA_ARGS=()
-      append_extras EXTRA_ARGS "$EXTRA" "$NVS_EXTRA"
+      [[ -n "$EXTRA" ]] && EXTRA_ARGS+=("$EXTRA")
+      [[ -n "$NVS_EXTRA" ]] && EXTRA_ARGS+=("$NVS_EXTRA")
+      [[ ${#EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${EXTRA_LIST[@]}")
+      [[ ${#NVS_EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${NVS_EXTRA_LIST[@]}")
       # with refinement (align on by default)
       if [[ "$RUN_WITH_REFINEMENT" == true ]]; then
         OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-with_pose_refinement-${SAFE_NAME}.txt"
         echo "-> $MODULE ${BASE_ARGS[*]} test.save_image=$NVS_SAVE_WITH -> $OUT_FILE"
-        CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+        run_cmd "$MODULE ${BASE_ARGS[*]} test.save_image=$NVS_SAVE_WITH" "$OUT_FILE" \
+          python -m $MODULE "${BASE_ARGS[@]}" "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}"
       fi
       # without refinement (align disabled)
       OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-without_pose_refinement-${SAFE_NAME}.txt"
       echo "-> $MODULE ${BASE_ARGS[*]} test.align_pose=false test.save_image=$NVS_SAVE_WITHOUT -> $OUT_FILE"
-      CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" test.align_pose=false "test.save_image=$NVS_SAVE_WITHOUT" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+      run_cmd "$MODULE ${BASE_ARGS[*]} test.align_pose=false test.save_image=$NVS_SAVE_WITHOUT" "$OUT_FILE" \
+        python -m $MODULE "${BASE_ARGS[@]}" test.align_pose=false "test.save_image=$NVS_SAVE_WITHOUT" "${EXTRA_ARGS[@]}"
       ;;
     *) echo "Unknown task: $E"; exit 5;;
   esac
 done
 
 echo "All requested evaluations executed. Results are in: $OUT_DIR"
+if [[ $FAILED -ne 0 ]]; then
+  echo "One or more evaluations failed. Inspect logs under $OUT_DIR"
+  exit 1
+fi

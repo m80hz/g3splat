@@ -4,11 +4,11 @@ defaults:
   - /dataset@_group_.re10k: re10k
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips, grid, normal]
+  - override /loss: [mse, lpips, normal]
 
 wandb:
-  name: acid_grid_normal
-  tags: [acid_grid_normal, 256x256]
+  name: acid_normal
+  tags: [acid_normal, 256x256]
 
 model:
   encoder:

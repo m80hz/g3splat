@@ -3,10 +3,10 @@ set -euo pipefail
 
 # Wrapper to evaluate a checkpoint on ACID across tasks.
 # Usage:
-#   scripts/eval_acid.sh -c <ckpt> -e <nvs_experiment> [-g 0] [-o results]
+#   scripts/eval_acid.sh -c <ckpt> -e <experiment> [-g 0] [-o results]
 
 CHECKPOINT=""
-EXPERIMENT="acid_grid_normal_1x8"   # NVS experiment for ACID
+EXPERIMENT="acid_grid_normal_1x8"   # NVS or Pose experiment for ACID
 GPU=0
 OUT_DIR="results"
 WANDB_NAME=""
@@ -31,13 +31,13 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-# NVS
+# NVS experiments for ACID configs
 ./scripts/eval_checkpoint.sh -c "$CHECKPOINT" -e "$EXPERIMENT" \
   --only nvs --gpu "$GPU" --out "$OUT_DIR" \
   --index "$INDEX" --view-ns dataset.re10k \
   ${WANDB_NAME:+--wandb-name "$WANDB_NAME"}
 
-# Pose + Depth experiments for ACID configs (pose uses acid_grid_normal)
-./scripts/eval_checkpoint.sh -c "$CHECKPOINT" -e acid_grid_normal \
+# Pose experiments for ACID configs
+./scripts/eval_checkpoint.sh -c "$CHECKPOINT" -e "$EXPERIMENT" \
   --only pose --gpu "$GPU" --out "$OUT_DIR" \
   --index "$INDEX" --view-ns dataset.re10k
