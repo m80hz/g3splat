@@ -99,43 +99,43 @@
     <tr>
       <!-- <td><code>0fb6678e63316201</code></td> -->
       <!-- <td>RGB</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/0fb6678e63316201_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/0fb6678e63316201_rgb.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/0fb6678e63316201_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/0fb6678e63316201_rgb.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/0fb6678e63316201_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/0fb6678e63316201_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- 0fb6678e63316201 Wobble -->
     <tr>
       <!-- <td><code>0fb6678e63316201</code></td> -->
       <!-- <td>Wobble</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
     <!-- 33288d55dde83e72 RGB -->
     <tr>
       <!-- <td><code>33288d55dde83e72</code></td> -->
       <!-- <td>RGB</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/33288d55dde83e72_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/33288d55dde83e72_rgb.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/33288d55dde83e72_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/33288d55dde83e72_rgb.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/33288d55dde83e72_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/33288d55dde83e72_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- 33288d55dde83e72 Wobble -->
     <tr>
       <!-- <td><code>33288d55dde83e72</code></td> -->
       <!-- <td>Wobble</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
     <!-- aef133f549f40970 RGB -->
     <tr>
       <!-- <td><code>aef133f549f40970</code></td> -->
       <!-- <td>RGB</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/aef133f549f40970_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/aef133f549f40970_rgb.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/aef133f549f40970_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/aef133f549f40970_rgb.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/aef133f549f40970_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/aef133f549f40970_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- aef133f549f40970 Wobble -->
     <tr>
       <!-- <td><code>aef133f549f40970</code></td> -->
       <!-- <td>Wobble</td> -->
-      <td align="center"><video src="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
   </tbody>
 </table>
@@ -289,8 +289,8 @@
     <tr>
       <!-- <td><code>scene0689_00_126_133</code></td> -->
       <!-- <td>RGB</td> -->
-      <td align="center"><video src="static/videos/ours/scannet/scene0689_00_126_133_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/scannet/scene0689_00_126_133_rgb.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/scannet/scene0689_00_126_133_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/scannet/scene0689_00_126_133_rgb.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/scannet/scene0689_00_126_133_rgb.mp4" target="_blank"><img src="static/images/ours/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/scannet/scene0689_00_126_133_rgb.mp4" target="_blank"><img src="static/images/noposplat/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- scene0689_00_126_133 Wobble -->
     <!-- <tr> -->
@@ -303,8 +303,8 @@
     <tr>
       <!-- <td><code>scene0698_01_305_314</code></td> -->
       <!-- <td>RGB</td> -->
-      <td align="center"><video src="static/videos/ours/scannet/scene0698_01_305_314_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/ours/scannet/scene0698_01_305_314_rgb.mp4" target="_blank">Open video</a>.</video></td>
-      <td align="center"><video src="static/videos/noposplat/scannet/scene0698_01_305_314_rgb.mp4" width="240" muted loop playsinline controls preload="metadata">Your browser does not support the video tag. <a href="static/videos/noposplat/scannet/scene0698_01_305_314_rgb.mp4" target="_blank">Open video</a>.</video></td>
+      <td align="center"><a href="static/videos/ours/scannet/scene0698_01_305_314_rgb.mp4" target="_blank"><img src="static/images/ours/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/scannet/scene0698_01_305_314_rgb.mp4" target="_blank"><img src="static/images/noposplat/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- scene0698_01_305_314 Wobble -->
     <!-- <tr> -->
