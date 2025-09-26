@@ -53,11 +53,11 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         else:
             # Extract image dimensions; batch["context"]["image"] shape: (B, V, C, H, W), V == 2.
             B, V, C, H, W = batch["context"]["image"].shape
-            eps = 1e-6  # small constant for numerical stability
+            eps = 1e-8  # small constant for numerical stability
 
             # -- compute point-cloud normals --
             all_pts3d = rearrange(gaussians.means, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
-            surf_normals_ptc = points_to_normal(all_pts3d)  # (B*V, H, W, 3)
+            surf_normals_ptc, weights = points_to_normal(all_pts3d)  # (B*V, H, W, 3)
 
             # -- compute gaussian surfel normals --
             gaussian_rot = rearrange(gaussians.rotations, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
@@ -76,6 +76,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
                 dot = (surf_normals * gs_normals).sum(-1)
                 ang_err = 1.0 - dot
                 loss_ang_per_pixel = F.smooth_l1_loss(ang_err, torch.zeros_like(ang_err), reduction='none', beta=self.cfg.huber_delta)
+                loss_ang_per_pixel = weights * loss_ang_per_pixel
                 loss_ang_mean = loss_ang_per_pixel.mean()
                 context_view_loss = self.cfg.lambda_context_views_normal * loss_ang_mean
 

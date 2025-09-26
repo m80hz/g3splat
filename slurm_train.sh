@@ -21,8 +21,22 @@ module use /apps/icl/modules/all
 source ~/.bashrc
 conda activate /hpcfs/users/$USER/projects/Gen2DGS/.conda
 
+# --- redirect temp & cache dirs to a directory with sufficient space ---
+export SCRATCH_BASE="${SLURM_TMPDIR:-/scratchdata1/users/$USER}"
+export TMPDIR="$SCRATCH_BASE/tmp-$SLURM_JOB_ID"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+export WANDB_CACHE_DIR="$TMPDIR/wandb_cache"  # artifacts/cache
+export CUDA_CACHE_PATH="$TMPDIR/cuda"         # CUDA kernel cache
+
+mkdir -p "$TMPDIR" "$WANDB_CACHE_DIR" "$CUDA_CACHE_PATH"
+
 echo "Starting job: $SLURM_JOB_NAME with ID $SLURM_JOB_ID"
-echo "Using TMPDIR: $TMPDIR"
 echo "Nodes allocated: $SLURM_NODELIST"
+echo "[temps] TMPDIR=$TMPDIR"
+echo "[temps] WANDB_CACHE_DIR=$WANDB_CACHE_DIR"
+echo "[temps] CUDA_CACHE_PATH=$CUDA_CACHE_PATH"
+
+echo "PYTHON=$(which python)"
 
 srun --export=ALL python -m src.main +experiment=re10k_grid_normal wandb.mode=offline

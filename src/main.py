@@ -1,6 +1,31 @@
 import os
 from pathlib import Path
 
+# # ---- FORCE scratch & caches to match Slurm script ----
+# USER = os.environ.get("USER", "unknown")
+# JOB  = os.environ.get("SLURM_JOB_ID", "manual")
+# # set this to the same base in the Slurm script.
+# BASE = os.environ.get("SCRATCH_BASE", f"/scratchdata1/users/{USER}")
+
+# FORCED_TMPDIR = f"{BASE}/tmp-{JOB}"
+# FORCED_WANDB  = f"{FORCED_TMPDIR}/wandb_cache"
+# FORCED_CUDA   = f"{FORCED_TMPDIR}/cuda"
+
+# os.environ["TMPDIR"] = FORCED_TMPDIR
+# os.environ["TMP"] = FORCED_TMPDIR
+# os.environ["TEMP"] = FORCED_TMPDIR
+# os.environ["WANDB_CACHE_DIR"] = FORCED_WANDB
+# os.environ["CUDA_CACHE_PATH"] = FORCED_CUDA
+
+# # ensure they exist
+# for k in ("TMPDIR", "WANDB_CACHE_DIR", "CUDA_CACHE_PATH"):
+#     Path(os.environ[k]).mkdir(parents=True, exist_ok=True)
+
+# print("[main.py] (forced) TMPDIR        =", os.environ["TMPDIR"])
+# print("[main.py] (forced) WANDB_CACHE_DIR=", os.environ["WANDB_CACHE_DIR"])
+# print("[main.py] (forced) CUDA_CACHE_PATH=", os.environ["CUDA_CACHE_PATH"])
+# # ---------------------------------------
+
 import hydra
 import torch
 import wandb

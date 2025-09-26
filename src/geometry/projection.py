@@ -292,18 +292,29 @@ def depth_to_normal(world_view_transform, full_proj_transform, image_width, imag
     output[1:-1, 1:-1, :] = normal_map
     return output
 
+
 def points_to_normal(points):
     # point of shape (B, H, W, 3)
     B, H, W, _ = points.shape
     normals = torch.zeros_like(points)
-    
-    pts_p = F.pad(points.permute(0,3,1,2), (1,1,1,1), mode='replicate')  
-    pts_p = pts_p.permute(0,2,3,1)  # back to (B,H+2,W+2,3)
+    # print("size of normal tensor default:", normals.shape )
+    # output = torch.zeros_like(points)
+    dy = points[:, 2:, 1:-1, :] - points[:, :-2, 1:-1, :]
+    dx = points[:, 1:-1, 2:, :] - points[:, 1:-1, :-2, :]
+    # todo reflective padding(?) or non asymetric differences(?)
+    # todo threshold on dx and dy (?)
 
-    dy = pts_p[:, 2:, 1:-1, :] - pts_p[:, :-2, 1:-1, :]
-    dx = pts_p[:, 1:-1, 2:, :] - pts_p[:, 1:-1, :-2, :]
-    
     normal_map = torch.nn.functional.normalize(torch.cross(dy, dx, dim=-1), dim=-1)
-    normals[:, :, :, :] = normal_map  # includes image edges
+    normals[:, 1:-1, 1:-1, :] = normal_map
+
+    # compute weights for the normals, so that the pixels with large depth changes
+    # have edge aware regularization
+    dists = torch.norm(dx, dim=-1) + torch.norm(dy,dim=-1)
+    dist_norm = torch.quantile(dists.view(-1),.95)
+    # print("dist norm is:", dist_norm)
+    weights = torch.zeros(B,H,W).to(normals.device)
+    weights[:, 1:-1, 1:-1] = 10.0*torch.exp(-4*dists/dist_norm)
     
-    return normals
+    return normals, weights
+    
+

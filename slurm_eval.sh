@@ -21,25 +21,30 @@ module use /apps/icl/modules/all
 source ~/.bashrc
 conda activate /hpcfs/users/$USER/projects/Gen2DGS/.conda
 
-# Redirect temporary files to a directory with sufficient space
-# export TMPDIR=/hpcfs/users/$USER/tmp
-# export TMP=/hpcfs/users/$USER/tmp
-# export TEMP=/hpcfs/users/$USER/tmp
-# export WANDB_CACHE_DIR=/hpcfs/users/$USER/tmp/wandb_cache
-# mkdir -p $TMPDIR
-# mkdir -p $WANDB_CACHE_DIR
+# --- redirect temp & cache dirs to a directory with sufficient space ---
+export SCRATCH_BASE="${SLURM_TMPDIR:-/scratchdata1/users/$USER}"
+export TMPDIR="$SCRATCH_BASE/tmp-$SLURM_JOB_ID"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+export WANDB_CACHE_DIR="$TMPDIR/wandb_cache"  # artifacts/cache
+export CUDA_CACHE_PATH="$TMPDIR/cuda"         # CUDA kernel cache
+
+mkdir -p "$TMPDIR" "$WANDB_CACHE_DIR" "$CUDA_CACHE_PATH"
 
 echo "Starting job: $SLURM_JOB_NAME with ID $SLURM_JOB_ID"
-echo "Using TMPDIR: $TMPDIR"
 echo "Nodes allocated: $SLURM_NODELIST"
+echo "[temps] TMPDIR=$TMPDIR"
+echo "[temps] WANDB_CACHE_DIR=$WANDB_CACHE_DIR"
+echo "[temps] CUDA_CACHE_PATH=$CUDA_CACHE_PATH"
+
+echo "PYTHON=$(which python)"
 
 srun --export=ALL python -m src.main \
                             +experiment=re10k_grid_normal \
                             mode=test \
-                            wandb.name=test_re10k_grid_normal_v2 \
+                            wandb.name=test_re10k_grid_normal \
                             dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
                             dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
                             test.save_image=false \
-                            checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt \
-                            > "nvs_re10k_grid_normal_with-pose-refinement_ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.txt" 2>&1
-    
+                            checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v5_edge_aware_hpc_2025-08-13_21-02-57_18750.ckpt \
+                            > "nvs_re10k_grid_normal_with-pose-refinement_ours_re10k_grid_normal_v5_edge-averse_hpc_2025-08-13_21-02-57_step_18750.txt" 2>&1
