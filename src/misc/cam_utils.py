@@ -155,27 +155,68 @@ def inv(mat):
     raise ValueError(f'bad matrix type = {type(mat)}')
 
 
-def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.3):
+def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.0, return_inliers: bool = False, use_ransac: bool = True):
+    """Estimate pose with PnP (RANSAC or plain iterative).
+
+    Parameters
+    ----------
+    pts3d : torch.Tensor
+        3D points (N,3) in world coordinates.
+    opacity : torch.Tensor
+        Opacity/confidence per point (N,).
+    K : torch.Tensor
+        Normalized intrinsics (fx,fy,cx,cy) scaled to [0,1] domain; will be scaled by image size.
+    H, W : int
+        Image height / width.
+    opacity_threshold : float, default 0.3
+        Minimum opacity to keep a 3D point for PnP.
+    return_inliers : bool, default False
+        If True, also return (inlier_count, inlier_ratio) from RANSAC result. For non-RANSAC mode these
+        will be (num_points, 1.0) if success else (0,0.0).
+    use_ransac : bool, default True
+        If True use cv2.solvePnPRansac, else use cv2.solvePnP with SOLVEPNP_ITERATIVE on all surviving points.
+    """
     pixels = np.mgrid[:W, :H].T.astype(np.float32)
-    pts3d = pts3d.cpu().numpy()
-    opacity = opacity.cpu().numpy()
-    K = K.cpu().numpy()
+    pts3d_np = pts3d.cpu().numpy()
+    opacity_np = opacity.cpu().numpy()
+    K_np = K.cpu().numpy()
 
-    K[0, :] = K[0, :] * W
-    K[1, :] = K[1, :] * H
+    K_np[0, :] = K_np[0, :] * W
+    K_np[1, :] = K_np[1, :] * H
 
-    mask = opacity > opacity_threshold
+    mask = opacity_np > opacity_threshold
+    if mask.sum() < 6:
+        mask = opacity_np > (0.5 * opacity_threshold)
+    if mask.sum() < 6:
+        mask = np.ones_like(opacity_np, dtype=bool)
 
-    res = cv2.solvePnPRansac(pts3d[mask], pixels[mask], K, None,
-                             iterationsCount=100, reprojectionError=5, flags=cv2.SOLVEPNP_SQPNP)
-    success, R, T, inliers = res
-
-    assert success
-
-    R = cv2.Rodrigues(R)[0]  # world to cam
-    pose = inv(np.r_[np.c_[R, T], [(0, 0, 0, 1)]])  # cam to world
-
-    return torch.from_numpy(pose.astype(np.float32))
+    if use_ransac:
+        res = cv2.solvePnPRansac(pts3d_np[mask], pixels[mask], K_np, None,
+                                 iterationsCount=100, reprojectionError=5, flags=cv2.SOLVEPNP_SQPNP)
+        success, Rvec, T, inliers = res
+        assert success, "cv2.solvePnPRansac failed to find a pose"
+        R = cv2.Rodrigues(Rvec)[0]
+        pose = inv(np.r_[np.c_[R, T], [(0, 0, 0, 1)]])
+        pose_torch = torch.from_numpy(pose.astype(np.float32))
+        if not return_inliers:
+            return pose_torch
+        inlier_count = int(0 if inliers is None else len(inliers))
+        denom = int(mask.sum()) if mask is not None else 0
+        inlier_ratio = float(inlier_count / denom) if denom > 0 else 0.0
+        return pose_torch, inlier_count, inlier_ratio
+    else:
+        # Plain least-squares Gauss-Newton over all correspondences (no RANSAC)
+        success, Rvec, T = cv2.solvePnP(pts3d_np[mask], pixels[mask], K_np, None, flags=cv2.SOLVEPNP_ITERATIVE)
+        assert success, "cv2.solvePnP failed to find a pose"
+        R = cv2.Rodrigues(Rvec)[0]
+        pose = inv(np.r_[np.c_[R, T], [(0, 0, 0, 1)]])
+        pose_torch = torch.from_numpy(pose.astype(np.float32))
+        if not return_inliers:
+            return pose_torch
+        # All points considered inliers if solved
+        inlier_count = int(mask.sum())
+        inlier_ratio = 1.0 if inlier_count > 0 else 0.0
+        return pose_torch, inlier_count, inlier_ratio
 
 
 def pose_auc(errors, thresholds):

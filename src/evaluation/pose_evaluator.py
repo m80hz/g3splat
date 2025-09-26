@@ -42,30 +42,23 @@ class PoseEvaluator(LightningModule):
         self.encoder = encoder.to(self.device)
         self.decoder = decoder
         self.losses = nn.ModuleList(losses)
-
         self.data_shim = get_data_shim(self.encoder)
 
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
 
-        # set to eval
         self.encoder.eval()
-        # freeze all parameters
-        for param in self.encoder.parameters():
-            param.requires_grad = False
+        for p in self.encoder.parameters(): p.requires_grad = False
 
         b, v, _, h, w = batch["context"]["image"].shape
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
 
-        # get overlap.
         overlap = batch["context"]["overlap"][0, 0]
         overlap_tag = get_overlap_tag(overlap)
-        if overlap_tag == "ignore":
-            return
+        if overlap_tag == "ignore": return
 
-        # runing encoder to obtain the 3DGS
         input_images_view2 = batch["context"]["image"][:, 1:2].clone()
         input_images_view2 = input_images_view2 * 0.5 + 0.5
         visualization_dump = {}
@@ -75,39 +68,45 @@ class PoseEvaluator(LightningModule):
             visualization_dump=visualization_dump,
         )
 
-        # optimize the pose using PnPRansac
-        pose_opt = get_pnp_pose(visualization_dump['means'][0, 1].squeeze(),
-                                visualization_dump['opacities'][0, 1].squeeze(),
-                                batch["context"]["intrinsics"][0, 1], h, w)
-        pose_opt = pose_opt.to(self.device)
-        # pose_opt = batch["context"]["extrinsics"][0, 0].clone()  # initial pose as the first view: I
+        # Iterative PnP (no RANSAC)
+        pose_pnp_iter = None
+        pnp_iter_inliers = None
+        pnp_iter_inlier_ratio = None
+        if getattr(self.cfg, "use_pnp_iterative", False):
+            pnp_iter_ret = get_pnp_pose(
+                visualization_dump['means'][0, 1].squeeze(),
+                visualization_dump['opacities'][0, 1].squeeze(),
+                batch["context"]["intrinsics"][0, 1], h, w,
+                return_inliers=True,
+                use_ransac=False
+            )
+            pose_pnp_iter = pnp_iter_ret[0].to(self.device)
+            pnp_iter_inliers = torch.tensor(pnp_iter_ret[1], device=self.device, dtype=torch.float32)
+            pnp_iter_inlier_ratio = torch.tensor(pnp_iter_ret[2], device=self.device, dtype=torch.float32)
 
+
+        # PnP init (RANSAC)
+        pnp_ret = get_pnp_pose(
+            visualization_dump['means'][0, 1].squeeze(),
+            visualization_dump['opacities'][0, 1].squeeze(),
+            batch["context"]["intrinsics"][0, 1], h, w,
+            return_inliers=True,
+            use_ransac=True
+        )
+        pose_pnp_ransac = pnp_ret[0].to(self.device)
+        pnp_ransac_inliers = torch.tensor(pnp_ret[1], device=self.device, dtype=torch.float32)
+        pnp_ransac_inlier_ratio = torch.tensor(pnp_ret[2], device=self.device, dtype=torch.float32)
+
+        # PnP + photometric
         if self.cfg.use_pose_refinement:
             with torch.set_grad_enabled(True):
                 cam_rot_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
                 cam_trans_delta = nn.Parameter(torch.zeros([b, 1, 3], requires_grad=True, device=self.device))
-
-                opt_params = []
-                opt_params.append(
-                    {
-                        "params": [cam_rot_delta],
-                        "lr": 0.005,
-                    }
-                )
-                opt_params.append(
-                    {
-                        "params": [cam_trans_delta],
-                        "lr": 0.005,
-                    }
-                )
-
-                pose_optimizer = torch.optim.Adam(opt_params)
-
+                pose_optimizer = torch.optim.Adam([cam_rot_delta, cam_trans_delta], lr=0.005)
                 number_steps = 200
-                extrinsics = pose_opt.unsqueeze(0).unsqueeze(0)  # initial pose use pose_opt
+                extrinsics = pose_pnp_ransac.unsqueeze(0).unsqueeze(0)
                 for i in range(number_steps):
                     pose_optimizer.zero_grad()
-
                     output = self.decoder.forward(
                         gaussians,
                         extrinsics,
@@ -119,134 +118,206 @@ class PoseEvaluator(LightningModule):
                         cam_trans_delta=cam_trans_delta,
                         decoder_type="3D"
                     )
-
-                    # Compute and log loss.
                     batch["target"]["image"] = input_images_view2
                     total_loss = 0
                     for loss_fn in self.losses:
-                        loss = loss_fn.forward(output, batch, gaussians, self.global_step)
-                        total_loss = total_loss + loss
-
-                    # add ssim structure loss
-                    ssim_, _, _, structure = ssim(rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
-                                        rearrange(output.color, "b v c h w -> (b v) c h w"),
-                                        size_average=True, data_range=1.0, retrun_seprate=True, win_size=11)
-                    ssim_loss = (1 - structure) * 1.0
-                    total_loss = total_loss + ssim_loss
-
-                    # backpropagate
-                    # print(f"Step {i} - Loss: {total_loss.item()}")
+                        total_loss = total_loss + loss_fn.forward(output, batch, gaussians, self.global_step)
+                    ssim_, _, _, structure = ssim(
+                        rearrange(batch["target"]["image"], "b v c h w -> (b v) c h w"),
+                        rearrange(output.color, "b v c h w -> (b v) c h w"),
+                        size_average=True, data_range=1.0, retrun_seprate=True, win_size=11
+                    )
+                    total_loss = total_loss + (1 - structure) * 1.0
                     total_loss.backward()
                     with torch.no_grad():
                         pose_optimizer.step()
-                        new_extrinsic = update_pose(cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
-                                                    cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
-                                                    extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j")
-                                                    )
+                        new_extrinsic = update_pose(
+                            cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i"),
+                            cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i"),
+                            extrinsics=rearrange(extrinsics, "b v i j -> (b v) i j"),
+                        )
                         cam_rot_delta.data.fill_(0)
                         cam_trans_delta.data.fill_(0)
-
                         extrinsics = rearrange(new_extrinsic, "(b v) i j -> b v i j", b=b, v=1)
-            
-            eval_pose = extrinsics[0, 0]
+            eval_pose_photo = extrinsics[0, 0]
         else:
-            eval_pose = pose_opt
+            eval_pose_photo = None
             
-        # eval pose
+        # Evaluate
+        eval_pose_pnp_ransac = pose_pnp_ransac
+        eval_pose_pnp_iter = pose_pnp_iter
+
         gt_pose = batch["context"]["extrinsics"][0, 1]
-        error_t, error_t_scale, error_R = compute_pose_error(gt_pose, eval_pose)
-        error_pose = torch.max(error_t, error_R)  # find the max error
 
-        all_metrics = {
-            "e_t_ours": error_t,
-            "e_R_ours": error_R,
-            "e_pose_ours": error_pose,
-        }
-
-        # self.log_dict(all_metrics)
-        self.print_preview_metrics(all_metrics, overlap_tag)
+        if eval_pose_pnp_ransac is not None:
+            error_t, _, error_R = compute_pose_error(gt_pose, eval_pose_pnp_ransac)
+            self.print_preview_metrics({
+                "e_t_pnp_ransac": error_t, "e_R_pnp_ransac": error_R, "e_pose_pnp_ransac": torch.max(error_t, error_R),
+                "inliers_pnp_ransac": pnp_ransac_inliers, "inlier_ratio_pnp_ransac": pnp_ransac_inlier_ratio
+            }, overlap_tag)
+        if eval_pose_pnp_iter is not None:
+            error_t_iter, _, error_R_iter = compute_pose_error(gt_pose, eval_pose_pnp_iter)
+            self.print_preview_metrics({
+                "e_t_pnp_iter": error_t_iter, "e_R_pnp_iter": error_R_iter, "e_pose_pnp_iter": torch.max(error_t_iter, error_R_iter),
+                "inliers_pnp_iter": pnp_iter_inliers, "inlier_ratio_pnp_iter": pnp_iter_inlier_ratio
+            }, overlap_tag)
+        if eval_pose_photo is not None:
+            e_t, _, e_R = compute_pose_error(gt_pose, eval_pose_photo)
+            self.print_preview_metrics({
+                "e_t_pnp_photo": e_t, "e_R_pnp_photo": e_R, "e_pose_pnp_photo": torch.max(e_t, e_R)
+            }, overlap_tag)
 
         return 0
 
-    # def calculate_auc(self, tot_e_pose, method_name, overlap_tag):
-    #     thresholds = [5, 10, 20, 30]
-    #     auc = pose_auc(tot_e_pose, thresholds)
-    #     print(f"Pose AUC {method_name} {overlap_tag}: ")
-    #     print(auc)
-    #     return auc
 
     def on_test_end(self) -> None:
-        # eval pose
+        print("\n==================== Pose Evaluation Summary ====================")
+        thresholds = [5, 10, 20, 30]
+
+        def _maybe_get_list(store, key):
+            if key not in store: return None
+            arr = np.asarray(store[key]);  return None if arr.size == 0 else arr
+
+        def _format_auc(auc_list):
+            return " | ".join(f"@{t}:{a:.3f}" for t, a in zip(thresholds, auc_list))
+
         for method in self.cfg.methods:
-            tot_e_pose = np.array(self.all_mertrics[f"e_pose_{method.key}"])
-            tot_e_pose = np.array(tot_e_pose)
-            thresholds = [5, 10, 20, 30]
-            auc = pose_auc(tot_e_pose, thresholds)
-            print(f"Pose AUC {method.key}: ")
-            print(auc)
+            k = method.key
+            pose_key = f"e_pose_{k}"
+            t_key = f"e_t_{k}"
+            r_key = f"e_R_{k}"
+            pose_vals = _maybe_get_list(self.all_mertrics, pose_key)
+            t_vals = _maybe_get_list(self.all_mertrics, t_key)
+            r_vals = _maybe_get_list(self.all_mertrics, r_key)
+            if pose_vals is None and t_vals is None and r_vals is None:
+                continue
+            print(f"\n--- Method: {k} (Overall) ---")
+            if t_vals is not None:
+                print("Translation AUC:", _format_auc(pose_auc(t_vals, thresholds)))
+            else:
+                print("Translation AUC: -")
+            if r_vals is not None:
+                print("Rotation AUC:    ", _format_auc(pose_auc(r_vals, thresholds)))
+            else:
+                print("Rotation AUC:     -")
+            if pose_vals is not None:
+                print("Max(pose) AUC:   ", _format_auc(pose_auc(pose_vals, thresholds)))
+            else:
+                print("Max(pose) AUC:    -")
 
-            for overlap_tag in self.all_mertrics_sub.keys():
-                tot_e_pose = np.array(self.all_mertrics_sub[overlap_tag][f"e_pose_{method.key}"])
-                tot_e_pose = np.array(tot_e_pose)
-                thresholds = [5, 10, 20, 30]
-                auc = pose_auc(tot_e_pose, thresholds)
-                print(f"Pose AUC {method.key} {overlap_tag}: ")
-                print(auc)
+            # Inlier stats (only meaningful for PnP / methods providing them)
+            inlier_vals = _maybe_get_list(self.all_mertrics, f"inliers_{k}")
+            inlier_ratio_vals = _maybe_get_list(self.all_mertrics, f"inlier_ratio_{k}")
+            if inlier_vals is not None:
+                print(f"Inliers (avg): {inlier_vals.mean():.2f}")
+            if inlier_ratio_vals is not None:
+                print(f"Inlier Ratio (avg): {100*inlier_ratio_vals.mean():.2f}%")
 
-        # save all metrics
+            if hasattr(self, 'all_mertrics_sub'):
+                for overlap_tag, metrics_dict in self.all_mertrics_sub.items():
+                    pose_vals_sub = _maybe_get_list(metrics_dict, pose_key)
+                    t_vals_sub = _maybe_get_list(metrics_dict, t_key)
+                    r_vals_sub = _maybe_get_list(metrics_dict, r_key)
+                    if pose_vals_sub is None and t_vals_sub is None and r_vals_sub is None:
+                        continue
+                    print(f"    Overlap: {overlap_tag}")
+                    if t_vals_sub is not None:
+                        print("      Translation AUC:", _format_auc(pose_auc(t_vals_sub, thresholds)))
+                    else:
+                        print("      Translation AUC: -")
+                    if r_vals_sub is not None:
+                        print("      Rotation AUC:    ", _format_auc(pose_auc(r_vals_sub, thresholds)))
+                    else:
+                        print("      Rotation AUC:     -")
+                    if pose_vals_sub is not None:
+                        print("      Max(pose) AUC:   ", _format_auc(pose_auc(pose_vals_sub, thresholds)))
+                    else:
+                        print("      Max(pose) AUC:    -")
+                    inlier_vals_sub = _maybe_get_list(metrics_dict, f"inliers_{k}")
+                    inlier_ratio_vals_sub = _maybe_get_list(metrics_dict, f"inlier_ratio_{k}")
+                    if inlier_vals_sub is not None:
+                        print(f"      Inliers (avg): {inlier_vals_sub.mean():.2f}")
+                    if inlier_ratio_vals_sub is not None:
+                        print(f"      Inlier Ratio (avg): {100*inlier_ratio_vals_sub.mean():.2f}%")
+
+        print("\nSaved raw metric arrays to all_metrics.npy / all_metrics_sub.npy")
         np.save("all_metrics.npy", self.all_mertrics)
-        np.save("all_metrics_sub.npy", self.all_mertrics_sub)
+        if hasattr(self, 'all_mertrics_sub'):
+            np.save("all_metrics_sub.npy", self.all_mertrics_sub)
 
     def print_preview_metrics(self, metrics: dict[str, float], overlap_tag: str | None = None) -> None:
         if getattr(self, "running_metrics", None) is None:
-            self.running_metrics = metrics
+            self.running_metrics = dict(metrics)
             self.running_metric_steps = 1
-
             self.all_mertrics = {k: [v.cpu().item()] for k, v in metrics.items()}
         else:
             s = self.running_metric_steps
-            self.running_metrics = {
-                k: ((s * v) + metrics[k]) / (s + 1)
-                for k, v in self.running_metrics.items()
-            }
-            self.running_metric_steps += 1
-
             for k, v in metrics.items():
+                if k in self.running_metrics:
+                    self.running_metrics[k] = ((s * self.running_metrics[k]) + v) / (s + 1)
+                else:
+                    self.running_metrics[k] = v
+            self.running_metric_steps += 1
+            for k, v in metrics.items():
+                if k not in self.all_mertrics:
+                    self.all_mertrics[k] = []
                 self.all_mertrics[k].append(v.cpu().item())
 
         if overlap_tag is not None:
             if getattr(self, "running_metrics_sub", None) is None:
-                self.running_metrics_sub = {overlap_tag: metrics}
+                self.running_metrics_sub = {overlap_tag: dict(metrics)}
                 self.running_metric_steps_sub = {overlap_tag: 1}
                 self.all_mertrics_sub = {overlap_tag: {k: [v.cpu().item()] for k, v in metrics.items()}}
             elif overlap_tag not in self.running_metrics_sub:
-                self.running_metrics_sub[overlap_tag] = metrics
+                self.running_metrics_sub[overlap_tag] = dict(metrics)
                 self.running_metric_steps_sub[overlap_tag] = 1
                 self.all_mertrics_sub[overlap_tag] = {k: [v.cpu().item()] for k, v in metrics.items()}
             else:
                 s = self.running_metric_steps_sub[overlap_tag]
-                self.running_metrics_sub[overlap_tag] = {k: ((s * v) + metrics[k]) / (s + 1)
-                                                         for k, v in self.running_metrics_sub[overlap_tag].items()}
-                self.running_metric_steps_sub[overlap_tag] += 1
-
                 for k, v in metrics.items():
+                    if k in self.running_metrics_sub[overlap_tag]:
+                        self.running_metrics_sub[overlap_tag][k] = ((s * self.running_metrics_sub[overlap_tag][k]) + v) / (s + 1)
+                    else:
+                        self.running_metrics_sub[overlap_tag][k] = v
+                self.running_metric_steps_sub[overlap_tag] += 1
+                for k, v in metrics.items():
+                    if k not in self.all_mertrics_sub[overlap_tag]:
+                        self.all_mertrics_sub[overlap_tag][k] = []
                     self.all_mertrics_sub[overlap_tag][k].append(v.cpu().item())
 
         def print_metrics(runing_metric):
             table = []
+            have_inlier_ratio = any(f"inlier_ratio_{m.key}" in runing_metric for m in self.cfg.methods)
+            headers = ["Method", "e_t", "e_R", "e_pose"] + (["inlier_ratio"] if have_inlier_ratio else [])
             for method in self.cfg.methods:
-                row = [
-                    f"{runing_metric[f'{metric}_{method.key}']:.3f}"
-                    for metric in ("e_t", "e_R", "e_pose")
-                ]
+                row = []
+                for metric in ("e_t", "e_R", "e_pose"):
+                    key = f"{metric}_{method.key}"
+                    val = runing_metric.get(key)
+                    if val is None:
+                        row.append("-")
+                    else:
+                        try:
+                            num = val.item() if hasattr(val, "item") else float(val)
+                            row.append(f"{num:.3f}")
+                        except Exception:
+                            row.append(str(val))
+                if have_inlier_ratio:
+                    val = runing_metric.get(f"inlier_ratio_{method.key}")
+                    if val is None:
+                        row.append("-")
+                    else:
+                        try:
+                            num = val.item() if hasattr(val, "item") else float(val)
+                            row.append(f"{num:.3f}")
+                        except Exception:
+                            row.append(str(val))
                 table.append((method.key, *row))
+            print(tabulate(table, headers))
 
-            table = tabulate(table, ["Method", "e_t", "e_R", "e_pose"])
-            print(table)
-
-        print("All Pairs:")
+        print("Running Average (All Pairs):")
         print_metrics(self.running_metrics)
         if overlap_tag is not None:
-            for k, v in self.running_metrics_sub.items():
-                print(f"Overlap: {k}")
-                print_metrics(v)
+            for k_sub, v_sub in self.running_metrics_sub.items():
+                print(f"Running Average (Overlap: {k_sub}):")
+                print_metrics(v_sub)

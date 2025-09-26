@@ -59,6 +59,9 @@ class GaussianAdapter(nn.Module):
         image_shape: tuple[int, int],
         eps: float = 1e-8,
     ) -> Gaussians:
+
+        # TODO: needs to be updated for quaternion order (to w, x, y, z) and world representation
+
         device = extrinsics.device
         raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
 
@@ -162,6 +165,7 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         # Extend the 2D scales to 3D
         scaling_extended = torch.cat([scales_2d, third_scale], dim=-1)
 
+        # In our gaussians head, rotations (quaternions as (w, x, y, z)) are represented in the world frame
         # Normalize the quaternion features to yield a valid quaternion.
         rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
         # rotations = torch.nn.functional.normalize(rotations)
@@ -169,6 +173,7 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
 
+        # Create world-space covariance matrices.
         covariances = build_covariance(scaling_extended, rotations)
 
         return Gaussians(

@@ -10,16 +10,10 @@ class MethodCfg:
 
 
 @dataclass
-class SceneCfg:
-    scene: str
-    target_index: int
-
-
-@dataclass
 class EvaluationCfg:
     methods: list[MethodCfg]
     side_by_side_path: Path | None
     output_metrics_path: Path
     animate_side_by_side: bool
-    highlighted: list[SceneCfg]
     use_pose_refinement: bool
+    use_pnp_iterative: bool  

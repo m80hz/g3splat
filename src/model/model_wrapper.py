@@ -6,6 +6,7 @@ import os
 import moviepy.editor as mpy
 import torch
 import wandb
+import numpy as np
 from einops import pack, rearrange, repeat
 from jaxtyping import Float
 from lightning.pytorch import LightningModule
@@ -243,7 +244,7 @@ class ModelWrapper(LightningModule):
             (scene,) = batch["scene"]
             name = get_cfg()["wandb"]["name"]
             path = self.test_cfg.output_path / name
-            save_path = Path(path) / 'gaussians' / (scene + '.ply')
+            save_path = Path(path) / scene / 'gaussians' / (scene + '.ply')
             save_gaussian_ply(gaussians, visualization_dump, batch, save_path)
 
         # align the target pose
@@ -461,13 +462,13 @@ class ModelWrapper(LightningModule):
             ## initialize the class to estimate the bounding sphere
             mesh = mesh_extractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
 
-            mesh_path = path / scene / "mesh" / "bounded.ply"
+            mesh_path = path / scene / "mesh" / (scene + '_bounded.ply')
             mesh_path.parent.mkdir(exist_ok=True, parents=True)
             o3d.io.write_triangle_mesh(mesh_path, mesh)
 
             # post-process the mesh and save, saving the largest N clusters
             mesh_post = post_process_mesh(mesh, cluster_to_keep=1)
-            mesh_path = Path(path) / scene / "mesh" / "bounded_post.ply"
+            mesh_path = Path(path) / scene / "mesh" / (scene + '_bounded_post.ply')
             o3d.io.write_triangle_mesh(mesh_path, mesh_post)
 
 
@@ -475,8 +476,14 @@ class ModelWrapper(LightningModule):
             frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
             save_video(
                 [a for a in output.color[0]],
-                path / "video" / f"{scene}_frame_{frame_str}.mp4",
+                path / scene / "video" / f"{scene}_frame_{frame_str}.mp4",
             )
+            
+            # Save interpolation and wobble videos locally during test step
+            video_save_path = path / scene / "video"
+            self.render_video_interpolation(batch, save_locally=True, save_path=video_save_path)
+            self.render_video_wobble(batch, save_locally=True, save_path=video_save_path)
+            
 
         if self.test_cfg.save_compare:
             # Construct comparison image.
@@ -503,7 +510,7 @@ class ModelWrapper(LightningModule):
                 add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
                 add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
             )
-            save_image(comparison, path / f"{scene}.png")
+            save_image(comparison, path / scene / "comparisons" / f"{scene}.png")
 
     def test_step_align(self, batch, gaussians):
         self.encoder.eval()
@@ -763,7 +770,7 @@ class ModelWrapper(LightningModule):
             self.render_video_interpolation_exaggerated(batch)
 
     @rank_zero_only
-    def render_video_wobble(self, batch: BatchedExample) -> None:
+    def render_video_wobble(self, batch: BatchedExample, save_locally: bool = False, save_path: Optional[Path] = None) -> None:
         # Two views are needed to get the wobble radius.
         _, v, _, _ = batch["context"]["extrinsics"].shape
         if v != 2:
@@ -785,10 +792,10 @@ class ModelWrapper(LightningModule):
             )
             return extrinsics, intrinsics
 
-        return self.render_video_generic(batch, trajectory_fn, "wobble", num_frames=60)
+        return self.render_video_generic(batch, trajectory_fn, "wobble", num_frames=60, save_locally=save_locally, save_path=save_path)
 
     @rank_zero_only
-    def render_video_interpolation(self, batch: BatchedExample) -> None:
+    def render_video_interpolation(self, batch: BatchedExample, save_locally: bool = False, save_path: Optional[Path] = None) -> None:
         _, v, _, _ = batch["context"]["extrinsics"].shape
 
         def trajectory_fn(t):
@@ -812,10 +819,10 @@ class ModelWrapper(LightningModule):
             )
             return extrinsics[None], intrinsics[None]
 
-        return self.render_video_generic(batch, trajectory_fn, "rgb")
+        return self.render_video_generic(batch, trajectory_fn, "rgb", save_locally=save_locally, save_path=save_path)
 
     @rank_zero_only
-    def render_video_interpolation_exaggerated(self, batch: BatchedExample) -> None:
+    def render_video_interpolation_exaggerated(self, batch: BatchedExample, save_locally: bool = False, save_path: Optional[Path] = None) -> None:
         # Two views are needed to get the wobble radius.
         _, v, _, _ = batch["context"]["extrinsics"].shape
         if v != 2:
@@ -858,6 +865,8 @@ class ModelWrapper(LightningModule):
             num_frames=300,
             smooth=False,
             loop_reverse=False,
+            save_locally=save_locally,
+            save_path=save_path,
         )
 
     @rank_zero_only
@@ -869,6 +878,8 @@ class ModelWrapper(LightningModule):
         num_frames: int = 30,
         smooth: bool = True,
         loop_reverse: bool = True,
+        save_locally: bool = False,
+        save_path: Optional[Path] = None,
     ) -> None:
         # Render probabilistic estimate of scene.
         gaussians = self.encoder(batch["context"], self.global_step)
@@ -896,23 +907,50 @@ class ModelWrapper(LightningModule):
         video = (video.clip(min=0, max=1) * 255).type(torch.uint8).cpu().numpy()
         if loop_reverse:
             video = pack([video, video[::-1][1:-1]], "* c h w")[0]
-        visualizations = {
-            f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
-        }
+        
+        # Save locally if requested (useful for test step)
+        if save_locally and save_path is not None:
+            video_path = save_path / f"{name}.mp4"
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            # Convert (T, C, H, W) uint8 tensor to list of (H, W, 3) frames for moviepy.
+            frames = []
+            for frame in video:  # frame: (C, H, W)
+                if frame.ndim != 3:
+                    continue  # skip invalid frames silently
+                c, fh, fw = frame.shape
+                if c == 1:
+                    frame_hw3 = np.repeat(frame, 3, axis=0)
+                elif c >= 3:
+                    frame_hw3 = frame[:3]  # take first 3 channels
+                else:
+                    # Unexpected channel count; pad to 3
+                    pad = np.zeros((3 - c, fh, fw), dtype=frame.dtype)
+                    frame_hw3 = np.concatenate([frame, pad], axis=0)
+                frame_hw3 = np.transpose(frame_hw3, (1, 2, 0))  # (H, W, 3)
+                frames.append(frame_hw3)
+            if len(frames) > 0:
+                clip = mpy.ImageSequenceClip(frames, fps=30)
+                clip.write_videofile(str(video_path), logger=None)
+        
+        # Log to wandb if not saving locally or if in training/validation
+        if not save_locally:
+            visualizations = {
+                f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
+            }
 
-        # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
-        try:
-            wandb.log(visualizations)
-        except Exception:
-            assert isinstance(self.logger, LocalLogger)
-            for key, value in visualizations.items():
-                tensor = value._prepare_video(value.data)
-                clip = mpy.ImageSequenceClip(list(tensor), fps=value._fps)
-                dir = LOG_PATH / key
-                dir.mkdir(exist_ok=True, parents=True)
-                clip.write_videofile(
-                    str(dir / f"{self.global_step:0>6}.mp4"), logger=None
-                )
+            # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
+            try:
+                wandb.log(visualizations)
+            except Exception:
+                assert isinstance(self.logger, LocalLogger)
+                for key, value in visualizations.items():
+                    tensor = value._prepare_video(value.data)
+                    clip = mpy.ImageSequenceClip(list(tensor), fps=value._fps)
+                    dir = LOG_PATH / key
+                    dir.mkdir(exist_ok=True, parents=True)
+                    clip.write_videofile(
+                        str(dir / f"{self.global_step:0>6}.mp4"), logger=None
+                    )
 
     def print_preview_metrics(self, metrics: dict[str, float | Tensor], methods: list[str] | None = None, overlap_tag: str | None = None) -> None:
         if getattr(self, "running_metrics", None) is None:
