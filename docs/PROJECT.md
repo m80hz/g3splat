@@ -6,7 +6,7 @@
 <table>
   <thead>
     <tr>
-      <!-- <th>Scene</th> -->
+      <th>Scene</th>
       <th>Inputs<br><small>(Source Views)</small></th>
       <th>GS Normal<br><small>Source View 1</small></th>
       <th>Rendered Color<br><small>Novel View</small></th>
@@ -17,7 +17,7 @@
   <tbody>
     <!-- Scene: 0fb6678e63316201 -->
     <tr>
-      <!-- <td><code>0fb6678e63316201</code></td> -->
+      <td><code>0fb6678e63316201</code></td>
       <td align="center">
         <div><img src="static/images/ours/re10k/0fb6678e63316201_context_0_color_000016.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
         <div><img src="static/images/ours/re10k/0fb6678e63316201_context_1_color_000256.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
@@ -38,7 +38,7 @@
     </tr>
     <!-- Scene: 33288d55dde83e72 -->
     <tr>
-      <!-- <td><code>33288d55dde83e72</code></td> -->
+      <td><code>33288d55dde83e72</code></td>
       <td align="center">
         <div><img src="static/images/ours/re10k/33288d55dde83e72_context_0_color_000179.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
         <div><img src="static/images/ours/re10k/33288d55dde83e72_context_1_color_000229.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
@@ -59,7 +59,7 @@
     </tr>
     <!-- Scene: aef133f549f40970 -->
     <tr>
-      <!-- <td><code>aef133f549f40970</code></td> -->
+      <td><code>aef133f549f40970</code></td>
       <td align="center">
         <div><img src="static/images/ours/re10k/aef133f549f40970_context_0_color_000010.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
         <div><img src="static/images/ours/re10k/aef133f549f40970_context_1_color_000082.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
@@ -88,7 +88,7 @@
 <table>
   <thead>
     <tr>
-      <!-- <th>Scene</th> -->
+      <th>Scene</th>
       <!-- <th>Variant</th> -->
       <th>Ours</th>
       <th>NoPoSplat</th>
@@ -97,45 +97,45 @@
   <tbody>
     <!-- 0fb6678e63316201 RGB -->
     <tr>
-      <!-- <td><code>0fb6678e63316201</code></td> -->
+      <td><code>0fb6678e63316201</code></td>
       <!-- <td>RGB</td> -->
       <td align="center"><a href="static/videos/ours/re10k/0fb6678e63316201_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="Ours RGB video thumbnail"></a></td>
       <td align="center"><a href="static/videos/noposplat/re10k/0fb6678e63316201_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- 0fb6678e63316201 Wobble -->
     <tr>
-      <!-- <td><code>0fb6678e63316201</code></td> -->
+      <td><code>0fb6678e63316201</code></td>
       <!-- <td>Wobble</td> -->
-      <td align="center"><a href="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
-      <td align="center"><a href="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_depth_000151.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_depth_000151.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
     <!-- 33288d55dde83e72 RGB -->
     <tr>
-      <!-- <td><code>33288d55dde83e72</code></td> -->
+      <td><code>33288d55dde83e72</code></td>
       <!-- <td>RGB</td> -->
       <td align="center"><a href="static/videos/ours/re10k/33288d55dde83e72_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="Ours RGB video thumbnail"></a></td>
       <td align="center"><a href="static/videos/noposplat/re10k/33288d55dde83e72_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- 33288d55dde83e72 Wobble -->
     <tr>
-      <!-- <td><code>33288d55dde83e72</code></td> -->
+      <td><code>33288d55dde83e72</code></td>
       <!-- <td>Wobble</td> -->
-      <td align="center"><a href="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
-      <td align="center"><a href="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_depth_000189.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_depth_000189.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
     <!-- aef133f549f40970 RGB -->
     <tr>
-      <!-- <td><code>aef133f549f40970</code></td> -->
+      <td><code>aef133f549f40970</code></td>
       <!-- <td>RGB</td> -->
       <td align="center"><a href="static/videos/ours/re10k/aef133f549f40970_rgb.mp4" target="_blank"><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="Ours RGB video thumbnail"></a></td>
       <td align="center"><a href="static/videos/noposplat/re10k/aef133f549f40970_rgb.mp4" target="_blank"><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
     </tr>
     <!-- aef133f549f40970 Wobble -->
     <tr>
-      <!-- <td><code>aef133f549f40970</code></td> -->
+      <td><code>aef133f549f40970</code></td>
       <!-- <td>Wobble</td> -->
-      <td align="center"><a href="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
-      <td align="center"><a href="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_depth_000031.png" width="240" alt="Ours Wobble video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" target="_blank"><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_depth_000031.png" width="240" alt="NoPoSplat Wobble video thumbnail"></a></td>
     </tr>
   </tbody>
 </table>
@@ -181,7 +181,7 @@
 <table>
   <thead>
     <tr>
-      <!-- <th>Scene</th> -->
+      <th>Scene</th>
       <th>Inputs<br><small>Source Views</small></th>
       <th>GS Normal<br><small>Source View 1</small></th>
       <th>Rendered Color<br><small>Novel View</small></th>
@@ -193,7 +193,7 @@
   <tbody>
     <!-- Scene: scene0689_00_126_133 -->
     <tr>
-      <!-- <td><code>scene0689_00_126_133</code></td> -->
+      <td><code>scene0689_00_126_133</code></td>
       <td align="center">
         <div><img src="static/images/ours/scannet/scene0689_00_126_133_context_0_color_000000.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
         <div><img src="static/images/ours/scannet/scene0689_00_126_133_context_1_color_000001.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
@@ -215,7 +215,7 @@
     </tr>
     <!-- Scene: scene0698_01_305_314 -->
     <tr>
-      <!-- <td><code>scene0698_01_305_314</code></td> -->
+      <td><code>scene0698_01_305_314</code></td>
       <td align="center">
         <div><img src="static/images/ours/scannet/scene0698_01_305_314_context_0_color_000000.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
         <div><img src="static/images/ours/scannet/scene0698_01_305_314_context_1_color_000001.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
@@ -278,7 +278,7 @@
 <table>
   <thead>
     <tr>
-      <!-- <th>Scene</th> -->
+      <th>Scene</th>
       <!-- <th>Variant</th> -->
       <th>Ours</th>
       <th>NoPoSplat</th>
@@ -287,7 +287,7 @@
   <tbody>
     <!-- scene0689_00_126_133 RGB -->
     <tr>
-      <!-- <td><code>scene0689_00_126_133</code></td> -->
+      <td><code>scene0689_00_126_133</code></td>
       <!-- <td>RGB</td> -->
       <td align="center"><a href="static/videos/ours/scannet/scene0689_00_126_133_rgb.mp4" target="_blank"><img src="static/images/ours/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="240" alt="Ours RGB video thumbnail"></a></td>
       <td align="center"><a href="static/videos/noposplat/scannet/scene0689_00_126_133_rgb.mp4" target="_blank"><img src="static/images/noposplat/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
@@ -301,7 +301,7 @@
     <!-- </tr> -->
     <!-- scene0698_01_305_314 RGB -->
     <tr>
-      <!-- <td><code>scene0698_01_305_314</code></td> -->
+      <td><code>scene0698_01_305_314</code></td>
       <!-- <td>RGB</td> -->
       <td align="center"><a href="static/videos/ours/scannet/scene0698_01_305_314_rgb.mp4" target="_blank"><img src="static/images/ours/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="240" alt="Ours RGB video thumbnail"></a></td>
       <td align="center"><a href="static/videos/noposplat/scannet/scene0698_01_305_314_rgb.mp4" target="_blank"><img src="static/images/noposplat/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
@@ -313,6 +313,149 @@
       <!-- <td align="center"><video src="static/videos/ours/scannet/scene0698_01_305_314_wobble.mp4" width="240" muted loop playsinline></video></td> -->
       <!-- <td align="center"><video src="static/videos/noposplat/scannet/scene0698_01_305_314_wobble.mp4" width="240" muted loop playsinline></video></td> -->
     <!-- </tr> -->
+  </tbody>
+</table>
+
+
+
+
+## DTU
+
+<table>
+  <thead>
+    <tr>
+      <th>Scene</th>
+      <th>Inputs<br><small>Source Views</small></th>
+      <th>GS Normal<br><small>Source View 1</small></th>
+      <th>Rendered Color<br><small>Novel View</small></th>
+      <th>Rendered Depth<br><small>Novel View</small></th>
+      <th>GT Depth<br><small>Novel View</small></th>
+      <th>GT Color<br><small>Novel View</small></th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Scene: scan1_train -->
+    <tr>
+      <td><code>scan1</code></td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan1_context_0_color_000033.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+        <div><img src="static/images/ours/dtu/scan1_context_1_color_000031.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan1_context_0_gs_normal_000033.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan1_context_0_gs_normal_000033.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan1_target_rendered_color_000032.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan1_target_rendered_color_000032.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan1_target_rendered_depth_000032.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan1_target_rendered_depth_000032.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center"><img src="static/images/ours/dtu/scan1_target_gt_depth_000032.png" width="125" alt="GT Depth"><br><sub>GT Depth</sub></td>
+      <td align="center"><img src="static/images/ours/dtu/scan1_target_gt_color_000032.png" width="125" alt="GT Color"><br><sub>GT Color</sub></td>
+    </tr>
+    <!-- Scene: scan114_train -->
+    <tr>
+      <td><code>scan114</code></td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan114_context_0_color_000033.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+        <div><img src="static/images/ours/dtu/scan114_context_1_color_000031.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan114_context_0_gs_normal_000033.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan114_context_0_gs_normal_000033.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan114_target_rendered_color_000032.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan114_target_rendered_color_000032.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center">
+        <div><img src="static/images/ours/dtu/scan114_target_rendered_depth_000032.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+        <div><img src="static/images/noposplat/dtu/scan114_target_rendered_depth_000032.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+      </td>
+      <td align="center"><img src="static/images/ours/dtu/scan114_target_gt_depth_000032.png" width="125" alt="GT Depth"><br><sub>GT Depth</sub></td>
+      <td align="center"><img src="static/images/ours/dtu/scan114_target_gt_color_000032.png" width="125" alt="GT Color"><br><sub>GT Color</sub></td>
+    </tr>
+  </tbody>
+</table>
+
+### DTU (Meshes & Gaussian Splats)
+
+<table>
+  <thead>
+    <tr>
+      <th>Scene</th>
+      <th>Ours</th>
+      <th>NoPoSplat</th>
+      <th>Ours</th>
+      <th>NoPoSplat</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>scan1</code></td>
+      <td><a href="https://skfb.ly/pBDDU" target="_blank">Ours Mesh</a></td>
+      <td><a href="https://skfb.ly/pBDEo" target="_blank">NoPoSplat Mesh</a></td>
+      <td><a href="https://superspl.at/view?id=79d8a2e1" target="_blank">Ours Gaussian Splats</a></td>
+      <td><a href="https://superspl.at/view?id=9c37c150" target="_blank">NoPoSplat Gaussian Splats</a></td>
+    </tr>
+    <tr>
+      <td><code>scan114</code></td>
+      <td><a href="https://skfb.ly/pBDEy" target="_blank">Ours Mesh</a></td>
+      <td><a href="https://skfb.ly/pBDEF" target="_blank">NoPoSplat Mesh</a></td>
+      <td><a href="https://superspl.at/view?id=de61f6c4" target="_blank">Ours Gaussian Splats</a></td>
+      <td><a href="https://superspl.at/view?id=31575385" target="_blank">NoPoSplat Gaussian Splats</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- <sub>ScanNet comparisons include ground-truth depth and color. Each cell stacks Ours (top) and NoPoSplat (bottom).</sub> -->
+
+
+
+
+### DTU (Video Comparisons)
+
+<table>
+  <thead>
+    <tr>
+      <th>Scene</th>
+      <!-- <th>Variant</th> -->
+      <th>Ours</th>
+      <th>NoPoSplat</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- scan1_train RGB -->
+    <tr>
+      <td><code>scan1</code></td>
+      <!-- <td>RGB</td> -->
+      <td align="center"><a href="static/videos/ours/dtu/scan1_rgb.mp4" target="_blank"><img src="static/images/ours/dtu/scan1_target_gt_color_000032.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/dtu/scan1_rgb.mp4" target="_blank"><img src="static/images/noposplat/dtu/scan1_target_rendered_color_000032.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
+    </tr>
+    <!-- scan1_train Wobble -->
+    <tr>
+      <td><code>scan1</code></td>
+      <!-- <td>Wobble</td> -->
+      <td align="center"><a href="static/videos/ours/dtu/scan1_wobble.mp4" target="_blank"><img src="static/images/ours/dtu/scan1_target_rendered_depth_000032.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/dtu/scan1_wobble.mp4" target="_blank"><img src="static/images/noposplat/dtu/scan1_target_rendered_depth_000032.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
+    </tr>
+    <!-- </tr> -->
+    <!-- scan114 RGB -->
+    <tr>
+      <td><code>scan114</code></td>
+      <!-- <td>RGB</td> -->
+      <td align="center"><a href="static/videos/ours/dtu/scan114_rgb.mp4" target="_blank"><img src="static/images/ours/dtu/scan114_target_gt_color_000032.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/dtu/scan114_rgb.mp4" target="_blank"><img src="static/images/noposplat/dtu/scan114_target_rendered_color_000032.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
+    </tr>
+    <!-- scan1_train Wobble -->
+    <tr>
+      <td><code>scan114</code></td>
+      <!-- <td>Wobble</td> -->
+      <td align="center"><a href="static/videos/ours/dtu/scan114_wobble.mp4" target="_blank"><img src="static/images/ours/dtu/scan114_target_rendered_depth_000032.png" width="240" alt="Ours RGB video thumbnail"></a></td>
+      <td align="center"><a href="static/videos/noposplat/dtu/scan114_wobble.mp4" target="_blank"><img src="static/images/noposplat/dtu/scan114_target_rendered_depth_000032.png" width="240" alt="NoPoSplat RGB video thumbnail"></a></td>
   </tbody>
 </table>
 
