@@ -29,8 +29,8 @@ INPUT_IMAGE_DIR = Path(args.input_dir)
 OUTPUT_DIR = Path(args.output_dir)
 
 
-# Target 100 MB per chunk.
-TARGET_BYTES_PER_CHUNK = int(1e8)
+# Target 50 MB per chunk.
+TARGET_BYTES_PER_CHUNK = int(5e7)
 
 def read_pfm(filename):
     file = open(filename, 'rb')
@@ -198,8 +198,8 @@ def load_metadata(intrinsics, world2cams) -> Metadata:
         cy = intr[1, 2]
         w = 2.0 * cx
         h = 2.0 * cy
-        saved_fx = fx / w
-        saved_fy = fy / h
+        saved_fx = 0.5 * fx / w
+        saved_fy = 0.5 * fy / h
         saved_cx = 0.5
         saved_cy = 0.5
         camera = [saved_fx, saved_fy, saved_cx, saved_cy, 0.0, 0.0]
@@ -251,7 +251,7 @@ if __name__ == "__main__":
 
         for key in keys:
             image_dir = INPUT_IMAGE_DIR / "Rectified" / key
-            depth_dir = INPUT_IMAGE_DIR / "Depths_raw/Depths" / key.split('_')[0]
+            depth_dir = INPUT_IMAGE_DIR / "Depths" / key.split('_')[0]
             num_bytes = get_size(image_dir) // 7
 
             # Read images, metadata and depth

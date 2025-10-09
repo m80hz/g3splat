@@ -32,9 +32,26 @@ def post_process_mesh(mesh, cluster_to_keep=1000):
     triangle_clusters = np.asarray(triangle_clusters)
     cluster_n_triangles = np.asarray(cluster_n_triangles)
     cluster_area = np.asarray(cluster_area)
-    n_cluster = np.sort(cluster_n_triangles.copy())[-cluster_to_keep]
-    n_cluster = max(n_cluster, 50) # filter meshes smaller than 50
+
+    # Handle degenerate / empty meshes gracefully
+    if cluster_n_triangles.size == 0:
+        print("[post_process_mesh] No triangle clusters found; returning empty mesh.")
+        empty = o3d.geometry.TriangleMesh()
+        return empty
+
+    keep_k = min(cluster_to_keep, cluster_n_triangles.size)
+    try:
+        n_cluster = np.sort(cluster_n_triangles.copy())[-keep_k]
+    except Exception:
+        print("[post_process_mesh] Failed to compute cluster threshold; returning empty mesh.")
+        return o3d.geometry.TriangleMesh()
+    n_cluster = max(int(n_cluster), 50)  # min triangle threshold
+
     triangles_to_remove = cluster_n_triangles[triangle_clusters] < n_cluster
+    if triangles_to_remove.size == 0:
+        print("[post_process_mesh] triangles_to_remove empty; returning original mesh copy.")
+        return mesh_0
+
     mesh_0.remove_triangles_by_mask(triangles_to_remove)
     mesh_0.remove_unreferenced_vertices()
     mesh_0.remove_degenerate_triangles()
@@ -121,7 +138,7 @@ class GaussianMeshExtractor(object):
 
 
     @torch.no_grad()
-    def extract_mesh_bounded(self, voxel_size=0.004, sdf_trunc=0.02, depth_trunc=3, mask_background=True ):
+    def extract_mesh_bounded(self, voxel_size=0.004, sdf_trunc=0.016, depth_trunc=100.0, mask_background=True, depth_scale=20.0):
         """
         Perform TSDF fusion given a fixed depth range, used in the paper.
         
@@ -170,13 +187,18 @@ class GaussianMeshExtractor(object):
             rgb = self.rgbmaps[i]
             depth = self.depthmaps[i].unsqueeze(0)
 
+            # Prepare Open3D RGBD with C-contiguous buffers
+            rgb_np = rgb.permute(1, 2, 0).detach().cpu().numpy()
+            rgb_u8 = np.ascontiguousarray((np.clip(rgb_np, 0.0, 1.0) * 255.0).astype(np.uint8))
+            depth_np = depth.squeeze(0).detach().cpu().numpy()  # H,W
+            depth_f32 = np.ascontiguousarray(depth_np.astype(np.float32))
 
-            # make open3d rgbd
             rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d.geometry.Image(np.asarray(np.clip(rgb.permute(1,2,0).cpu().numpy(), 0.0, 1.0) * 255, order="C", dtype=np.uint8)),
-                o3d.geometry.Image(np.asarray(depth.permute(1,2,0).cpu().numpy(), order="C")),
-                depth_trunc = 100, convert_rgb_to_intensity=False,
-                depth_scale = 20.0
+                o3d.geometry.Image(rgb_u8),
+                o3d.geometry.Image(depth_f32),
+                depth_scale=depth_scale,
+                depth_trunc=depth_trunc,
+                convert_rgb_to_intensity=False,
             )
 
             volume.integrate(rgbd, intrinsic=cam_o3d.intrinsic, extrinsic=cam_o3d.extrinsic)

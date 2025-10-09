@@ -149,19 +149,40 @@ class DatasetRE10k(IterableDataset):
                     print(f"Skipped bad example {example['key']}.")  # DL3DV-Full have some bad images
                     continue
 
-                # Load the depths if there is any.
-                if 'depths' in example.keys():
-                    context_depths = [
-                        example['depths'][index.item()] for index in context_indices
-                    ]
-                    target_depths = [
-                        example["depths"][index.item()] for index in target_indices
-                    ]
-                    assert context_depths[0].shape == context_images[0].shape[1:]
-                    ## resize depths ##
+                # Load the depths if available in the serialized example.
+                if "depths" in example.keys():
+                    # Each item is a float tensor shaped (H, W). Convert to (V, 1, H, W).
+                    ctx_list = [example["depths"][idx.item()] for idx in context_indices]
+                    tgt_list = [example["depths"][idx.item()] for idx in target_indices]
+
+                    def _stack_depths(depth_list):
+                        tensors = []
+                        for d in depth_list:
+                            # Ensure float32 tensor with channel dim.
+                            if isinstance(d, torch.Tensor):
+                                t = d
+                            else:
+                                t = torch.tensor(d, dtype=torch.float32)
+                            if t.ndim == 2:
+                                t = t.unsqueeze(0)  # (1, H, W)
+                            tensors.append(t)
+                        return torch.stack(tensors, dim=0)  # (V, 1, H, W)
+
+                    context_depths = _stack_depths(ctx_list)
+                    target_depths = _stack_depths(tgt_list)
+
+                    # Valid mask: positive and finite depths.
+                    context_valid_depths = (
+                        (context_depths > 0) & torch.isfinite(context_depths)
+                    ).float()
+                    target_valid_depths = (
+                        (target_depths > 0) & torch.isfinite(target_depths)
+                    ).float()
                 else:
                     context_depths = None
                     target_depths = None
+                    context_valid_depths = None
+                    target_valid_depths = None
 
                 # Skip the example if the images don't have the right shape.
                 context_image_invalid = context_images.shape[1:] != (3, *self.cfg.original_image_shape)
@@ -197,6 +218,7 @@ class DatasetRE10k(IterableDataset):
                         "extrinsics": extrinsics[context_indices],
                         "intrinsics": intrinsics[context_indices],
                         "image": context_images,
+                        **({"depth": context_depths, "valid_depth": context_valid_depths} if context_depths is not None else {}),
                         "near": self.get_bound("near", len(context_indices)) / scale,
                         "far": self.get_bound("far", len(context_indices)) / scale,
                         "index": context_indices,
@@ -206,6 +228,7 @@ class DatasetRE10k(IterableDataset):
                         "extrinsics": extrinsics[target_indices],
                         "intrinsics": intrinsics[target_indices],
                         "image": target_images,
+                        **({"depth": target_depths, "valid_depth": target_valid_depths} if target_depths is not None else {}),
                         "near": self.get_bound("near", len(target_indices)) / scale,
                         "far": self.get_bound("far", len(target_indices)) / scale,
                         "index": target_indices,

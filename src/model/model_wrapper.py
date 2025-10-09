@@ -305,7 +305,7 @@ class ModelWrapper(LightningModule):
         all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
         # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
         # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
-        surf_normals_pts = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
+        surf_normals_pts, _ = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
        
         # Visualising depth and normals for target views
         # predictions for target views
@@ -400,13 +400,20 @@ class ModelWrapper(LightningModule):
 
             # Save visualisations for target views
             for index, color in zip(batch["target"]["index"][0], output.color[0]):
-                save_image(color, path / scene / f"targets_color/{index:0>6}.png")
+                save_image(color, path / scene / f"targets_rendered_color/{index:0>6}.png")
 
             for index, color in zip(batch["target"]["index"][0], batch["target"]["image"][0]):
-                save_image(color, path / scene / f"targets_color_gt/{index:0>6}.png")
+                save_image(color, path / scene / f"targets_gt_color/{index:0>6}.png")
 
             for index, depth in zip(batch["target"]["index"][0], target_rendered_depth):
                 save_image(depth, path / scene / f"targets_rendered_depth/{index:0>6}.png")
+                
+            # if depth is in dataset, save the GT depth as well
+            if "depth" in batch["target"].keys():
+                target_gt_depth = batch["target"]["depth"][0].squeeze(1)  # (V, H, W)
+                target_gt_depth_vis = vis_depth_map(target_gt_depth)
+                for index, depth in zip(batch["target"]["index"][0], target_gt_depth_vis):
+                    save_image(depth, path / scene / f"targets_gt_depth/{index:0>6}.png")
 
             for index, normal in zip(batch["target"]["index"][0], surface_normal):
                 save_image(normal, path / scene / f"targets_surface_normal/{index:0>6}.png")
@@ -651,7 +658,7 @@ class ModelWrapper(LightningModule):
         all_pts3d = rearrange(gaussians.means, "b (v h w) d -> b v h w d", h=h, w=w)
         # pts3d1 = all_pts3d[:, 0, ...]  # (B, H, W, 3)
         # pts3d2 = all_pts3d[:, 1, ...]  # (B, H, W, 3)
-        surf_normals_pts = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
+        surf_normals_pts, _ = points_to_normal(all_pts3d[0])   # (v, h, w, c=3)
 
         
         # Compute validation metrics.

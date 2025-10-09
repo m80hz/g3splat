@@ -100,8 +100,8 @@ def rescale_and_crop(
     # reshape and crop depth and valid_depths as well when available
     if depths is not None:
         depths = F.interpolate(depths, size=(h_scaled, w_scaled), mode="bilinear", align_corners=True)
-        valid_depths = F.interpolate(depths, size=(h_scaled, w_scaled), mode="bilinear", align_corners=True)
-        valid_depths = (valid_depths > 0.99).float()
+        valid_depths = F.interpolate(valid_depths, size=(h_scaled, w_scaled), mode="nearest")
+        valid_depths = (valid_depths > 0.5).float()
 
     return center_crop(images, intrinsics, shape, depths=depths, valid_depths=valid_depths)
 

@@ -6,7 +6,7 @@ name: scannet_depth
 roots: [datasets/scannetv1_test]
 context_pair_file: scannet_test_pairs.txt
 num_target_views: 4
-make_baseline_1: true
+make_baseline_1: false
 augment: true
 
 input_image_shape: [256, 256]

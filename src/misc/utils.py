@@ -1,5 +1,6 @@
 import torch
 import re
+import numpy as np
 
 from src.visualization.color_map import apply_color_map_to_image
 
@@ -31,14 +32,20 @@ def vis_depth_map(result, norm_min=None, norm_max=None, colormap="turbo"):
     Returns:
         torch.Tensor: A color-mapped image tensor (float in [0, 1] with shape [B, 3, H, W]).
     """
+    # Ensure contiguous-friendly operations
+    result = result.detach()
+    # Identify exact-zero depths to paint black later.
+    zero_mask = (result == 0)
+    # Avoid -inf by substituting 1.0 for zeros during normalization only.
+    safe_result = torch.where(zero_mask, torch.ones_like(result), result)
     # Apply log-transform to the input values.
-    result_log = result.log()
+    result_log = safe_result.log()
     
     if norm_min is None or norm_max is None:
         # Fallback: compute quantiles per image.
-        far = result.view(-1)[:16_000_000].quantile(0.99).log()
+        far = result.reshape(-1)[:16_000_000].quantile(0.99).log()
         try:
-            near = result[result > 0][:16_000_000].quantile(0.01).log()
+            near = result[result > 0].reshape(-1)[:16_000_000].quantile(0.01).log()
         except Exception as e:
             print("No valid depth values found.", e)
             near = torch.zeros_like(far)
@@ -47,19 +54,29 @@ def vis_depth_map(result, norm_min=None, norm_max=None, colormap="turbo"):
 
     # Normalize using constant values.
     normalized = 1 - (result_log - norm_min) / (norm_max - norm_min)
-    
-    return apply_color_map_to_image(normalized, colormap)
+    # Apply colormap
+    colored = apply_color_map_to_image(normalized, colormap)
+
+    # Paint zero depths black only, preserve other colors
+    if zero_mask.ndim == 2:  # H W -> 3 H W
+        mask_c = zero_mask.unsqueeze(0).expand(3, -1, -1)
+        colored[mask_c] = 0.0
+    elif zero_mask.ndim == 3:  # B H W -> B 3 H W
+        mask_c = zero_mask.unsqueeze(1).expand(-1, 3, -1, -1)
+        colored[mask_c] = 0.0
+
+    return colored
 
 def confidence_map(result):
-    # far = result.view(-1)[:16_000_000].quantile(0.99).log()
+    # far = result.reshape(-1)[:16_000_000].quantile(0.99).log()
     # try:
-    #     near = result[result > 0][:16_000_000].quantile(0.01).log()
+    #     near = result[result > 0].reshape(-1)[:16_000_000].quantile(0.01).log()
     # except:
     #     print("No valid depth values found.")
     #     near = torch.zeros_like(far)
     # result = result.log()
     # result = 1 - (result - near) / (far - near)
-    result = result / result.view(-1).max()
+    result = result / result.reshape(-1).max()
     return apply_color_map_to_image(result, "magma")
 
 

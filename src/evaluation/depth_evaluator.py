@@ -269,10 +269,9 @@ class DepthEvaluator(LightningModule):
         near_value_tg = batch["target"]["near"].view(-1, 1, 1)  # shape (B, 1, 1)
         far_value_tg  = batch["target"]["far"].view(-1, 1, 1)   # shape (B, 1, 1)
         # depth_mask = None
-        context_depth_mask = (context_depth_gt > near_value_ctx) & (context_depth_gt < far_value_ctx)
-        target_depth_mask = (target_depth_gt > near_value_tg) & (target_depth_gt < far_value_tg)
+        context_depth_mask = (context_depth_gt > near_value_ctx) & (context_depth_gt < far_value_ctx) & context_valid_depth_gt.bool()
+        target_depth_mask = (target_depth_gt > near_value_tg) & (target_depth_gt < far_value_tg) & target_valid_depth_gt.bool()
         
-       
         # --- Context 1 --- The one with identity pose
         results_ctx1_rendered, parity_map_ctx1_rendered, pred_full_ctx1_rendered, gt_full_ctx1_rendered = self.depth_evaluation(
             predicted_depth_original=context_depth_rendered[0:1],

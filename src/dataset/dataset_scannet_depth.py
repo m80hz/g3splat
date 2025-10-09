@@ -303,8 +303,18 @@ class DatasetScannetDepth(IterableDataset):
             K_norm_t[1, :3] /= h_t
             intrinsics_target = torch.tensor(K_norm_t, dtype=torch.float32).unsqueeze(0).repeat(len(target_indices), 1, 1)
 
+            # Resize the world to make the baseline 1.
+            # here
+            if self.cfg.make_baseline_1:
+                baseline = torch.norm(new_context_pose[0, :3, 3] - new_context_pose[1, :3, 3])
+                scale_factor = 1.0 / baseline
+                new_context_pose[:, :3, 3] *= scale_factor
+                new_target_pose[:, :3, 3] *= scale_factor
+            else:
+                scale_factor = 1.0
+
             overlap = torch.tensor([0.5], dtype=torch.float32)
-            scale = torch.tensor([1.0], dtype=torch.float32)
+            scale = torch.tensor([scale_factor], dtype=torch.float32)
             context_idx_tensor = torch.tensor([0, 1], dtype=torch.int64)
             target_idx_tensor = torch.tensor(list(range(len(target_indices))), dtype=torch.int64)
 
@@ -315,8 +325,8 @@ class DatasetScannetDepth(IterableDataset):
                     "image": context_images,
                     "depth": context_depths,
                     "valid_depth": context_valid_depths,
-                    "near": self.get_bound("near", 2),
-                    "far": self.get_bound("far", 2),
+                    "near": self.get_bound("near", 2) * scale_factor,
+                    "far": self.get_bound("far", 2) * scale_factor,
                     "index": context_idx_tensor,
                     "overlap": overlap,
                     "scale": scale,
@@ -327,8 +337,8 @@ class DatasetScannetDepth(IterableDataset):
                     "image": target_images,
                     "depth": target_depths,
                     "valid_depth": target_valid_depths,
-                    "near": self.get_bound("near", len(target_indices)),
-                    "far": self.get_bound("far", len(target_indices)),
+                    "near": self.get_bound("near", len(target_indices)) * scale_factor,
+                    "far": self.get_bound("far", len(target_indices)) * scale_factor,
                     "index": target_idx_tensor,
                 },
                 "scene": f"{scene_name}_{context_indices[0]}_{context_indices[1]}",

@@ -155,7 +155,7 @@ def inv(mat):
     raise ValueError(f'bad matrix type = {type(mat)}')
 
 
-def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.0, return_inliers: bool = False, use_ransac: bool = True):
+def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.3, return_inliers: bool = False, use_ransac: bool = True):
     """Estimate pose with PnP (RANSAC or plain iterative).
 
     Parameters
