@@ -276,8 +276,17 @@ class DatasetScannetPose(IterableDataset):
 
             intrinsics = torch.tensor(K, dtype=torch.float32).unsqueeze(0).repeat(2, 1, 1)
 
-            overlap = torch.tensor([0.5], dtype=torch.float32)
-            scale = torch.tensor([1.0], dtype=torch.float32)
+            # Resize the world to make the baseline 1.
+            if self.cfg.make_baseline_1:
+                baseline = torch.norm(extrinsics[0, :3, 3] - extrinsics[1, :3, 3])
+                scale_factor = 1.0 / baseline
+                extrinsics[:, :3, 3] *= scale_factor
+            else:
+                scale_factor = 1.0
+
+
+            overlap = torch.tensor([-1.0], dtype=torch.float32)
+            scale = torch.tensor([scale_factor], dtype=torch.float32)
             context_indices = torch.tensor([0, 1], dtype=torch.int64)
 
             example = {
@@ -287,8 +296,8 @@ class DatasetScannetPose(IterableDataset):
                     "image": context_images,
                     "depth": context_depths,
                     "valid_depth": context_valid_depths,
-                    "near": self.get_bound("near", 2),
-                    "far": self.get_bound("far", 2),
+                    "near": self.get_bound("near", 2) * scale_factor,
+                    "far": self.get_bound("far", 2) * scale_factor,
                     "index": context_indices,
                     "overlap": overlap,
                     "scale": scale,
@@ -299,8 +308,8 @@ class DatasetScannetPose(IterableDataset):
                     "image": target_images,
                     "depth": target_depths,
                     "valid_depth": target_valid_depths,
-                    "near": self.get_bound("near", 2),
-                    "far": self.get_bound("far", 2),
+                    "near": self.get_bound("near", 2) * scale_factor,
+                    "far": self.get_bound("far", 2) * scale_factor,
                     "index": context_indices,
                 },
                 "scene": f"{scene_name}_{context_indices[0]}_{context_indices[1]}",

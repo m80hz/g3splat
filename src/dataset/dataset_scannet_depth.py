@@ -304,7 +304,6 @@ class DatasetScannetDepth(IterableDataset):
             intrinsics_target = torch.tensor(K_norm_t, dtype=torch.float32).unsqueeze(0).repeat(len(target_indices), 1, 1)
 
             # Resize the world to make the baseline 1.
-            # here
             if self.cfg.make_baseline_1:
                 baseline = torch.norm(new_context_pose[0, :3, 3] - new_context_pose[1, :3, 3])
                 scale_factor = 1.0 / baseline
@@ -313,7 +312,7 @@ class DatasetScannetDepth(IterableDataset):
             else:
                 scale_factor = 1.0
 
-            overlap = torch.tensor([0.5], dtype=torch.float32)
+            overlap = torch.tensor([-1.0], dtype=torch.float32)
             scale = torch.tensor([scale_factor], dtype=torch.float32)
             context_idx_tensor = torch.tensor([0, 1], dtype=torch.int64)
             target_idx_tensor = torch.tensor(list(range(len(target_indices))), dtype=torch.int64)

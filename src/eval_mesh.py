@@ -59,6 +59,24 @@ def evaluate(cfg_dict: DictConfig):
     set_cfg(cfg_dict)
     torch.manual_seed(cfg.seed)
 
+    # Mesh-eval-only override: ensure baseline normalization for ScanNet depth datasets
+    # regardless of the default used in other eval scripts.
+    for i, ds in enumerate(cfg.dataset):
+        # Each item is a typed wrapper. Detect the ScanNet depth wrapper by attribute.
+        if hasattr(ds, "scannet_depth"):
+            ds.scannet_depth.make_baseline_1 = True
+    # Also mirror this into the underlying raw cfg_dict so any consumers reading it directly see the override.
+    try:
+        if "dataset" in cfg_dict:
+            # When composed via group, dataset entries are keyed by their group name.
+            if "scannet_depth" in cfg_dict["dataset"]:
+                cfg_dict["dataset"]["scannet_depth"]["make_baseline_1"] = True
+            # Fallback for grouped composition under _group_
+            if "_group_" in cfg_dict and "scannet_depth" in cfg_dict["_group_"]:
+                cfg_dict["_group_"]["scannet_depth"]["make_baseline_1"] = True
+    except Exception:
+        pass
+
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)
     ckpt_weights = torch.load(cfg.checkpointing.load, map_location="cpu")["state_dict"]
     # remove the prefix "encoder.", need to judge if is at start of key
