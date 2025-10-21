@@ -185,8 +185,8 @@ def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.3, return_inliers:
     K_np[1, :] = K_np[1, :] * H
 
     mask = opacity_np > opacity_threshold
-    if mask.sum() < 6:
-        mask = opacity_np > (0.5 * opacity_threshold)
+    # if mask.sum() < 6:
+    #     mask = opacity_np > (0.5 * opacity_threshold)
     if mask.sum() < 6:
         mask = np.ones_like(opacity_np, dtype=bool)
 
@@ -213,9 +213,9 @@ def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.3, return_inliers:
         pose_torch = torch.from_numpy(pose.astype(np.float32))
         if not return_inliers:
             return pose_torch
-        # All points considered inliers if solved
+        # All points considered inliers except those filtered by opacity threshold
         inlier_count = int(mask.sum())
-        inlier_ratio = 1.0 if inlier_count > 0 else 0.0
+        inlier_ratio = float(inlier_count / mask.size) if mask.size > 0 else 0.0
         return pose_torch, inlier_count, inlier_ratio
 
 
