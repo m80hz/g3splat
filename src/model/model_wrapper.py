@@ -322,12 +322,12 @@ class ModelWrapper(LightningModule):
 
         gaussian_scales = visualization_dump["scales"]
         gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
-        context1_gaussian_scales = gaussian_scales[:, 0, ...]     # shape (B, H, W, 2)
+        context1_gaussian_scales = gaussian_scales[:, 0, ...]     # shape (B, H, W, 3)
         sorted_context1_gaussian_scales = torch.sort(context1_gaussian_scales, dim=-1, descending=True)[0]
         # Compute normalized scales by dividing every channel by the first channel (i.e., scale 0)
         epsilon = 1e-6
-        context1_gaussian_scales_normalized = sorted_context1_gaussian_scales / (sorted_context1_gaussian_scales[..., :1] + epsilon)   # shape (B, H, W, 2)
-        
+        context1_gaussian_scales_normalized = sorted_context1_gaussian_scales / (sorted_context1_gaussian_scales[..., :1] + epsilon)   # shape (B, H, W, 3)
+
         gaussian_opacities = visualization_dump['opacities']
         gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
         context1_gaussian_opacities = gaussian_opacities[:, 0, ...]     # shape (B, H, W, 1)
@@ -359,8 +359,8 @@ class ModelWrapper(LightningModule):
             save_image(gaussian_opacity_vis[0], path / scene / f"context1_gaussian_opacity/{context1_index:0>6}.png")
             
             # Save the scales: for each scale channel, save one image per batch.
-            # sorted_context1_gaussian_scales has shape (B, H, W, 2)
-            for scale_idx in range(2):
+            # sorted_context1_gaussian_scales has shape (B, H, W, 3)
+            for scale_idx in range(3):
                 # Extract one scale channel: shape (B, H, W)
                 # gaussian_scale_map = context1_gaussian_scales[..., scale_idx]
                 gaussian_scale_map = sorted_context1_gaussian_scales[..., scale_idx]
@@ -670,10 +670,10 @@ class ModelWrapper(LightningModule):
         ssim = compute_ssim(rgb_gt, rgb_pred).mean()
         self.log(f"val/ssim", ssim)
 
-        surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
-        render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
-        rend_dist = vis_depth_map(output.dist[0])
-        rend_alpha = vis_depth_map(output.alpha[0])
+        # surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        # render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        # rend_dist = vis_depth_map(output.dist[0])
+        # rend_alpha = vis_depth_map(output.alpha[0])
 
         # Visualisation of gaussians orientations (predicted from context views)
         gaussian_rotations = visualization_dump["rotations"]
@@ -682,7 +682,7 @@ class ModelWrapper(LightningModule):
 
         # gaussian_scales = visualization_dump["scales"]
         # gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
-        # contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 2)
+        # contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 3)
         # sorted_contexts_gaussian_scales = torch.sort(contexts_gaussian_scales, dim=-1, descending=True)[0]
         
         
@@ -718,10 +718,10 @@ class ModelWrapper(LightningModule):
             add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
             add_label(vcat(*rgb_pred), "Target (Prediction)"),
             add_label(vcat(*depth_pred), "Rendered Depth"),
-            add_label(vcat(*surface_normal), "Surface Normal"),
-            add_label(vcat(*render_normal), "Rendered Normal"),
-            add_label(vcat(*rend_dist), "Depth Distortion"),
-            add_label(vcat(*rend_alpha), "Alpha"),
+            # add_label(vcat(*surface_normal), "Surface Normal"),
+            # add_label(vcat(*render_normal), "Rendered Normal"),
+            # add_label(vcat(*rend_dist), "Depth Distortion"),
+            # add_label(vcat(*rend_alpha), "Alpha"),
         )
 
         if self.distiller is not None:

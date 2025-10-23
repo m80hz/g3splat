@@ -16,8 +16,8 @@ from .gaussians import build_covariance
 class Gaussians:
     means: Float[Tensor, "*batch 3"]
     covariances: Float[Tensor, "*batch 3 3"]
-    # scales: Float[Tensor, "*batch 3"]
-    scales: Float[Tensor, "*batch 2"]
+    scales: Float[Tensor, "*batch 3"]
+    # scales: Float[Tensor, "*batch 2"]
     rotations: Float[Tensor, "*batch 4"]
     harmonics: Float[Tensor, "*batch 3 _"]
     opacities: Float[Tensor, " *batch"]
@@ -148,22 +148,22 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         intrinsics: Optional[Float[Tensor, "*#batch 3 3"]] = None,
         coordinates: Optional[Float[Tensor, "*#batch 2"]] = None,
     ) -> Gaussians:
-        raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
+        raw_scales_3d, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
         
-        scales_2d = 0.001 * F.softplus(raw_scales_2d)
-        scales_2d = scales_2d.clamp_max(0.3)
-        # scales_2d = torch.exp(raw_scales_2d)
+        scales_3d = 0.001 * F.softplus(raw_scales_3d)
+        scales_3d = scales_3d.clamp_max(0.3)
+        # scales_3d = torch.exp(raw_scales_3d)
 
-        # # the third element is fixed (corresponding to the normal direction)
-        # scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
-        ratio = 0.01
-        min_scale_2d, _ = scales_2d.min(dim=-1, keepdim=True)
-        # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
-        min_third_scale = 1.e-6
-        third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
-
-        # Extend the 2D scales to 3D
-        scaling_extended = torch.cat([scales_2d, third_scale], dim=-1)
+        # # # the third element is fixed (corresponding to the normal direction)
+        # # scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
+        # ratio = 0.01
+        # min_scale_2d, _ = scales_2d.min(dim=-1, keepdim=True)
+        # # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
+        # min_third_scale = 1.e-6
+        # third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
+        #
+        # # Extend the 2D scales to 3D
+        # scaling_extended = torch.cat([scales_2d, third_scale], dim=-1)
 
         # In our gaussians head, rotations (quaternions as (w, x, y, z)) are represented in the world frame
         # Normalize the quaternion features to yield a valid quaternion.
@@ -174,20 +174,20 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
 
         # Create world-space covariance matrices.
-        covariances = build_covariance(scaling_extended, rotations)
+        covariances = build_covariance(scales_3d, rotations)
 
         return Gaussians(
             means=means,
             covariances=covariances,
             harmonics=sh,
             opacities=opacities,
-            scales=scales_2d,
-            rotations=rotations.broadcast_to((*scales_2d.shape[:-1], 4)),
+            scales=scales_3d,
+            rotations=rotations.broadcast_to((*scales_3d.shape[:-1], 4)),
         )
         
     @property
     def d_in(self) -> int:
-        # 2 for scale + 4 for rotation + 3*d_sh for harmonics
-        return 6 + 3 * self.d_sh
+        # 3 for scale + 4 for rotation + 3*d_sh for harmonics
+        return 7 + 3 * self.d_sh
 
 

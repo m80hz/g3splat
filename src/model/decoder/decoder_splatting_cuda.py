@@ -49,7 +49,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         depth_mode: DepthRenderingMode | None = None,
         cam_rot_delta: Float[Tensor, "batch view 3"] | None = None,
         cam_trans_delta: Float[Tensor, "batch view 3"] | None = None,
-        decoder_type: str = "2D"
+        decoder_type: str = "3D"
     ) -> DecoderOutput:
         b, v, _, _ = extrinsics.shape
         

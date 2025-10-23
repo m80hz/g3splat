@@ -254,7 +254,7 @@ def render_cuda_orthographic(
     image_shape: tuple[int, int],
     background_color: Float[Tensor, "batch 3"],
     gaussian_means: Float[Tensor, "batch gaussian 3"],
-    gaussian_scales: Float[Tensor, "batch gaussian 2"],
+    gaussian_scales: Float[Tensor, "batch gaussian 3"],
     gaussian_rotations: Float[Tensor, "batch gaussian 4"],
     gaussian_sh_coefficients: Float[Tensor, "batch gaussian 3 d_sh"],
     gaussian_opacities: Float[Tensor, "batch gaussian"],
@@ -300,7 +300,7 @@ def render_cuda_orthographic(
     full_projection = view_matrix @ projection_matrix
 
     all_images = []
-    all_radii = []
+    # all_radii = []
     for i in range(b):
         # Set up a tensor for the gradients of the screen-space means.
         mean_gradients = torch.zeros_like(gaussian_means[i], requires_grad=True)
@@ -309,7 +309,7 @@ def render_cuda_orthographic(
         except Exception:
             pass
 
-        settings = GaussianRasterizationSettings(
+        settings = GaussianRasterizationSettings_3D(
             image_height=h,
             image_width=w,
             tanfovx=tan_fov_x,
@@ -318,33 +318,33 @@ def render_cuda_orthographic(
             scale_modifier=1.0,
             viewmatrix=view_matrix[i],
             projmatrix=full_projection[i],
-            # projmatrix_raw=projection_matrix[i],
+            projmatrix_raw=projection_matrix[i],
             sh_degree=degree,
             campos=extrinsics[i, :3, 3],
             prefiltered=False,  # This matches the original usage.
             debug=False,
         )
-        rasterizer = GaussianRasterizer(settings)
+        rasterizer = GaussianRasterizer_3D(settings)
 
         row, col = torch.triu_indices(3, 3)
 
-        # image, radii, depth, opacity, n_touched = rasterizer(
-        image, radii, allmap = rasterizer(
+        # image, radii, allmap = rasterizer(
+        image, radii, depth, opacity, n_touched = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,
             colors_precomp=None if use_sh else shs[i, :, 0, :],
             opacities=gaussian_opacities[i, ..., None],
-            scales=gaussian_scales[i],
-            rotations=gaussian_rotations[i],
+            # scales=gaussian_scales[i],
+            # rotations=gaussian_rotations[i],
             # precomputed 3d covariance passed as None
-            cov3D_precomp=None
-            # cov3D_precomp=gaussian_covariances[i, :, row, col],
+            # cov3D_precomp=None
+            cov3D_precomp=gaussian_covariances[i, :, row, col],
             # theta=cam_rot_delta[i] if cam_rot_delta is not None else None,
             # rho=cam_trans_delta[i] if cam_trans_delta is not None else None,
         )
         all_images.append(image)
-        all_radii.append(radii)
+        # all_radii.append(radii)
     return torch.stack(all_images)
 
 
