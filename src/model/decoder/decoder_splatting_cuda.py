@@ -4,7 +4,7 @@ from typing import Literal
 import torch
 from einops import rearrange, repeat
 from jaxtyping import Float
-from torch import Tensor
+from torch import Tensor, exp
 
 from ...dataset import DatasetCfg
 from ..types import Gaussians
@@ -18,6 +18,7 @@ class DecoderSplattingCUDACfg:
     background_color: list[float]
     make_scale_invariant: bool
     depth_ratio: int
+    expected_depth: bool
 
 
 class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
@@ -29,6 +30,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
     ) -> None:
         super().__init__(cfg)
         self.make_scale_invariant = cfg.make_scale_invariant
+        self.expected_depth = cfg.expected_depth
         self.depth_ratio = cfg.depth_ratio
         self.register_buffer(
             "background_color",
@@ -70,6 +72,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 scale_invariant=self.make_scale_invariant,
                 cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i") if cam_rot_delta is not None else None,
                 cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
+                expected_depth=self.expected_depth,
             )
         elif decoder_type == "3D":
             # only used for camera pose optimisation
@@ -87,6 +90,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 scale_invariant=self.make_scale_invariant,
                 cam_rot_delta=rearrange(cam_rot_delta, "b v i -> (b v) i") if cam_rot_delta is not None else None,
                 cam_trans_delta=rearrange(cam_trans_delta, "b v i -> (b v) i") if cam_trans_delta is not None else None,
+                expected_depth=self.expected_depth,
             )
         else:
             raise ValueError("Decoder type should be either 2D or 3D.")

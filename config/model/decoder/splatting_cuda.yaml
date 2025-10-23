@@ -6,3 +6,7 @@ make_scale_invariant: false
 # for unbounded scene, use expected depth, i.e., depth_ration = 0, to reduce disk aliasing.
 # 0 for mean (expected) depth and 1 for median depth
 depth_ratio: 0 
+
+# If true, output expected depth (accumulated depth normalized by alpha);
+# if false (default), output accumulated depth directly.
+expected_depth: true

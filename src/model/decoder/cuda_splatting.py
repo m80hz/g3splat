@@ -62,6 +62,7 @@ def render_cuda(
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
     cam_trans_delta: Float[Tensor, "batch 3"] | None = None,
+    expected_depth: bool = True,
 ) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None,
            Float[Tensor, "batch height width"] | None, Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None]:
 
@@ -161,17 +162,20 @@ def render_cuda(
         render_depth_median = allmap[5:6]
         render_depth_median = torch.nan_to_num(render_depth_median, 0, 0)
 
-        # get expected depth map
-        render_depth_expected = allmap[0:1]
-        render_depth_expected = (render_depth_expected / render_alpha)
-        render_depth_expected = torch.nan_to_num(render_depth_expected, 0, 0)
+        # Depth rendering mode switch:
+        # - expected depth (default): normalize by alpha
+        # - accumulated depth: use raw accumulated depth from rasterizer
+        render_depth = allmap[0:1]
+        if expected_depth:
+            render_depth = (render_depth / render_alpha)
+        render_depth = torch.nan_to_num(render_depth, 0, 0)
         
         # get depth distortion map
         render_dist = allmap[6:7]
 
         # pseudo surface attributes
         # surf depth is either median or expected by setting depth_ratio to 1 or 0
-        surf_depth = render_depth_expected * (1 - depth_ratio) + depth_ratio * render_depth_median
+        surf_depth = render_depth * (1 - depth_ratio) + depth_ratio * render_depth_median
         
         # assume the depth points form the 'surface' and generate pseudo surface normal for regularizations.
         surf_normal = depth_to_normal(view_matrix[i], full_projection[i], w, h, surf_depth)
@@ -187,9 +191,9 @@ def render_cuda(
         # print(f'{render_depth_median.shape=}')
         # inspect_depth_tensor(render_depth_median)
 
-        # print(f'{render_depth_expected.shape=}')
-        # inspect_depth_tensor(render_depth_expected)
-        
+        # print(f'{render_depth.shape=}')
+        # inspect_depth_tensor(render_depth)
+
         # print(f'{surf_normal.shape=}')
         # inspect_depth_tensor(torch.sqrt(torch.sum(surf_normal ** 2, dim=0)))
 
@@ -360,6 +364,7 @@ def render_cuda_3d(
     use_sh: bool = True,
     cam_rot_delta: Float[Tensor, "batch 3"] | None = None,
     cam_trans_delta: Float[Tensor, "batch 3"] | None = None,
+    expected_depth: bool = True,
 ) -> tuple[Float[Tensor, "batch 3 height width"], Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None,
            Float[Tensor, "batch height width"] | None, Float[Tensor, "batch height width"] | None, Float[Tensor, "batch 3 height width"] | None]:
     assert use_sh or gaussian_sh_coefficients.shape[-1] == 1
@@ -432,6 +437,12 @@ def render_cuda_3d(
         )
         all_images.append(image)
         all_radii.append(radii)
+        # Depth rendering mode switch:
+        # - expected depth (default): normalize by opacity
+        # - accumulated depth: use raw accumulated depth from rasterizer
+        if expected_depth:
+            depth = (depth / opacity)
+        depth = torch.nan_to_num(depth, 0, 0)
         all_depths.append(depth.squeeze(0))
     return torch.stack(all_images), None, None, None, torch.stack(all_depths), None
 
