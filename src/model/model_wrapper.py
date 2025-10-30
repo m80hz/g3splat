@@ -310,10 +310,10 @@ class ModelWrapper(LightningModule):
         # Visualising depth and normals for target views
         # predictions for target views
         target_rendered_depth = vis_depth_map(output.depth[0])
-        surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
-        render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
-        rend_dist = vis_depth_map(output.dist[0])
-        rend_alpha = vis_depth_map(output.alpha[0])
+        # surface_normal = vis_normal(output.surf_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        # render_normal = vis_normal(output.rend_normal[0].permute(0, 2, 3, 1)).permute(0, 3, 1, 2).float() / 255
+        # rend_dist = vis_depth_map(output.dist[0])
+        # rend_alpha = vis_depth_map(output.alpha[0])
 
         # Visualisation of gaussians (predicted from context views) - for context 1 only 
         gaussian_rotations = visualization_dump["rotations"]
@@ -415,14 +415,14 @@ class ModelWrapper(LightningModule):
                 for index, depth in zip(batch["target"]["index"][0], target_gt_depth_vis):
                     save_image(depth, path / scene / f"targets_gt_depth/{index:0>6}.png")
 
-            for index, normal in zip(batch["target"]["index"][0], surface_normal):
-                save_image(normal, path / scene / f"targets_surface_normal/{index:0>6}.png")
+            # for index, normal in zip(batch["target"]["index"][0], surface_normal):
+            #     save_image(normal, path / scene / f"targets_surface_normal/{index:0>6}.png")
 
-            for index, normal in zip(batch["target"]["index"][0], render_normal):
-                save_image(normal, path / scene / f"targets_rendered_normal/{index:0>6}.png")
+            # for index, normal in zip(batch["target"]["index"][0], render_normal):
+            #     save_image(normal, path / scene / f"targets_rendered_normal/{index:0>6}.png")
 
-            for index, alpha in zip(batch["target"]["index"][0], rend_alpha):
-                save_image(alpha, path / scene / f"targets_rendered_alphas/{index:0>6}.png")
+            # for index, alpha in zip(batch["target"]["index"][0], rend_alpha):
+            #     save_image(alpha, path / scene / f"targets_rendered_alphas/{index:0>6}.png")
 
         
         if self.test_cfg.save_mesh:
@@ -512,10 +512,10 @@ class ModelWrapper(LightningModule):
                 add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
                 add_label(vcat(*rgb_pred), "Target (Prediction)"),
                 add_label(vcat(*target_rendered_depth), "Depth (Prediction)"),
-                add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
-                add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
-                add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
-                add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
+                # add_label(vcat(*surface_normal), "Surface Normal (Prediction)"),
+                # add_label(vcat(*render_normal), "Rendered Normal (Prediction)"),
+                # add_label(vcat(*rend_dist), "Depth Distortion (Prediction)"),
+                # add_label(vcat(*rend_alpha), "Alpha (Prediction)"),
             )
             save_image(comparison, path / scene / "comparisons" / f"{scene}.png")
 
