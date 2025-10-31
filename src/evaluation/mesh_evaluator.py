@@ -926,6 +926,27 @@ class ScanNetMeshEvaluator(LightningModule):
         recs  = np.array([r.recall_5cm for r in self.scene_results], dtype=float)
         fs    = np.array([r.fscore_5cm for r in self.scene_results], dtype=float)
 
+        # Unfiltered overall (only ignores NaNs, keeps large finite values)
+        overall_unfiltered = {
+            "accuracy": float(np.nanmean(accs)),
+            "completeness": float(np.nanmean(comps)),
+            "overall": float(np.nanmean(overs)),
+            "precision_5cm": float(np.nanmean(precs)),
+            "recall_5cm": float(np.nanmean(recs)),
+            "fscore_5cm": float(np.nanmean(fs)),
+        }
+        print("\n===== ScanNet Mesh Evaluation (overall mean - unfiltered) =====")
+        print(
+            tabulate(
+                [[
+                    overall_unfiltered["accuracy"], overall_unfiltered["completeness"], overall_unfiltered["overall"],
+                    overall_unfiltered["precision_5cm"], overall_unfiltered["recall_5cm"], overall_unfiltered["fscore_5cm"],
+                ]],
+                headers=["accuracy", "completeness", "overall", "prec@5cm", "recall@5cm", "fscore@5cm"],
+                floatfmt=".3f",
+            )
+        )
+
         # Outlier filtering (ignore > threshold) for distance-like metrics.
         outlier_thresh = float(getattr(self.cfg, "mean_metric_outlier_thresh", 10.0))
         def _filter(arr):
@@ -940,7 +961,7 @@ class ScanNetMeshEvaluator(LightningModule):
         overs_f = _filter(overs)
         # (Do not filter precision/recall/F1; they are bounded [0,1])
 
-        overall = {
+        overall_filtered = {
             "accuracy": float(np.nanmean(accs_f)),
             "completeness": float(np.nanmean(comps_f)),
             "overall": float(np.nanmean(overs_f)),
@@ -948,13 +969,13 @@ class ScanNetMeshEvaluator(LightningModule):
             "recall_5cm": float(np.nanmean(recs)),
             "fscore_5cm": float(np.nanmean(fs)),
         }
-        print("\n===== ScanNet Mesh Evaluation (overall mean) =====")
+        print("\n===== ScanNet Mesh Evaluation (overall mean - filtered) =====")
         print(f"(Outlier filtering applied: values > {outlier_thresh} ignored for accuracy/completeness/overall)")
         print(
             tabulate(
                 [[
-                    overall["accuracy"], overall["completeness"], overall["overall"],
-                    overall["precision_5cm"], overall["recall_5cm"], overall["fscore_5cm"],
+                    overall_filtered["accuracy"], overall_filtered["completeness"], overall_filtered["overall"],
+                    overall_filtered["precision_5cm"], overall_filtered["recall_5cm"], overall_filtered["fscore_5cm"],
                 ]],
                 headers=["accuracy", "completeness", "overall", "prec@5cm", "recall@5cm", "fscore@5cm"],
                 floatfmt=".3f",
@@ -977,4 +998,6 @@ class ScanNetMeshEvaluator(LightningModule):
                 }
                 for r in self.scene_results
             ], f, indent=2)
-        np.save("overall_mesh_metrics.npy", overall)
+        # Save both variants; keep original filename for filtered metrics to preserve behavior.
+        np.save("overall_mesh_metrics.npy", overall_filtered)
+        np.save("overall_mesh_metrics_unfiltered.npy", overall_unfiltered)
