@@ -799,51 +799,56 @@ class ScanNetMeshEvaluator(LightningModule):
             self.scene_results.append(MeshEvalResult(scene=scene_token, accuracy=np.nan, completeness=np.nan, overall=np.nan, precision_5cm=np.nan, recall_5cm=np.nan, fscore_5cm=np.nan))
             return 0
 
-        # Alignment: scale-only, sim3, etc.
-        sim3_mode = str(getattr(self.cfg, "sim3_mode", "sim3")).lower()
-        if sim3_mode == "scale":
-            s = _estimate_scale_only_from_meshes(
-                pred_mesh_norm,
-                gt_mesh_metric,
-                iters=int(getattr(self.cfg, "scale_icp_iters", 8)),
-                outlier_frac=float(getattr(self.cfg, "scale_outlier_frac", 0.2)),
-            )
-            abs_bounds = getattr(self.cfg, "sim3_scale_bounds", None)
-            if abs_bounds is not None:
-                s_min, s_max = abs_bounds
-                if not (s_min <= s <= s_max):
-                    raise RuntimeError(f"Scale-only: s={s:.6f} outside absolute bounds [{s_min}, {s_max}]")
-            print(f"[scale-only] scale={s:.6f}")
-            T_pred_to_metric = np.eye(4, dtype=np.float64); T_pred_to_metric[:3, :3] = np.eye(3) * s
-        elif sim3_mode in ("scale_t", "scale_tz"):
-            restrict_axis = 'z' if sim3_mode == 'scale_tz' else None
-            T_pred_to_metric = _estimate_scale_translate_from_meshes(
-                pred_mesh_norm,
-                gt_mesh_metric,
-                iters=int(getattr(self.cfg, "scale_t_iters", 50)),
-                outlier_frac=float(getattr(self.cfg, "scale_t_outlier_frac", 0.2)),
-                restrict_axis=restrict_axis,
-                eps_rel=float(getattr(self.cfg, "scale_t_eps_rel", 1e-4)),
-            )
-            s_est = float(np.cbrt(np.linalg.det(T_pred_to_metric[:3, :3])))
-            t_est = T_pred_to_metric[:3, 3]
-            if restrict_axis == 'z':
-                print(f"[scale+tz] scale={s_est:.6f} t_z={t_est[2]:.6f}")
+        # Alignment: scale-only, sim3, etc. (robust: record NaN on failure)
+        try:
+            sim3_mode = str(getattr(self.cfg, "sim3_mode", "sim3")).lower()
+            if sim3_mode == "scale":
+                s = _estimate_scale_only_from_meshes(
+                    pred_mesh_norm,
+                    gt_mesh_metric,
+                    iters=int(getattr(self.cfg, "scale_icp_iters", 8)),
+                    outlier_frac=float(getattr(self.cfg, "scale_outlier_frac", 0.2)),
+                )
+                abs_bounds = getattr(self.cfg, "sim3_scale_bounds", None)
+                if abs_bounds is not None:
+                    s_min, s_max = abs_bounds
+                    if not (s_min <= s <= s_max):
+                        raise RuntimeError(f"Scale-only: s={s:.6f} outside absolute bounds [{s_min}, {s_max}]")
+                print(f"[scale-only] scale={s:.6f}")
+                T_pred_to_metric = np.eye(4, dtype=np.float64); T_pred_to_metric[:3, :3] = np.eye(3) * s
+            elif sim3_mode in ("scale_t", "scale_tz"):
+                restrict_axis = 'z' if sim3_mode == 'scale_tz' else None
+                T_pred_to_metric = _estimate_scale_translate_from_meshes(
+                    pred_mesh_norm,
+                    gt_mesh_metric,
+                    iters=int(getattr(self.cfg, "scale_t_iters", 50)),
+                    outlier_frac=float(getattr(self.cfg, "scale_t_outlier_frac", 0.2)),
+                    restrict_axis=restrict_axis,
+                    eps_rel=float(getattr(self.cfg, "scale_t_eps_rel", 1e-4)),
+                )
+                s_est = float(np.cbrt(np.linalg.det(T_pred_to_metric[:3, :3])))
+                t_est = T_pred_to_metric[:3, 3]
+                if restrict_axis == 'z':
+                    print(f"[scale+tz] scale={s_est:.6f} t_z={t_est[2]:.6f}")
+                else:
+                    print(f"[scale+t] scale={s_est:.6f} t=({t_est[0]:.4f},{t_est[1]:.4f},{t_est[2]:.4f})")
+            elif sim3_mode == "sim3":
+                T_pred_to_metric = _estimate_sim3_full_from_meshes(
+                    pred_mesh_norm,
+                    gt_mesh_metric,
+                    max_iters=int(getattr(self.cfg, "sim3_icp_iters", 8)),
+                    cfg=self.cfg,
+                )
+                s_est = float(np.cbrt(np.linalg.det(T_pred_to_metric[:3, :3])))
+                print(f"[sim3] estimated scale ≈ {s_est:.6f}")
             else:
-                print(f"[scale+t] scale={s_est:.6f} t=({t_est[0]:.4f},{t_est[1]:.4f},{t_est[2]:.4f})")
-        elif sim3_mode == "sim3":
-            T_pred_to_metric = _estimate_sim3_full_from_meshes(
-                pred_mesh_norm,
-                gt_mesh_metric,
-                max_iters=int(getattr(self.cfg, "sim3_icp_iters", 8)),
-                cfg=self.cfg,
-            )
-            s_est = float(np.cbrt(np.linalg.det(T_pred_to_metric[:3, :3])))
-            print(f"[sim3] estimated scale ≈ {s_est:.6f}")
-        else:
-            raise ValueError("Unknown sim3_mode '%s'. Use 'scale', 'scale_t', 'scale_tz', or 'sim3'." % sim3_mode)
-        
-        pred_mesh_metric = _apply_transform_to_mesh(pred_mesh_norm, T_pred_to_metric)
+                raise ValueError("Unknown sim3_mode '%s'. Use 'scale', 'scale_t', 'scale_tz', or 'sim3'." % sim3_mode)
+
+            pred_mesh_metric = _apply_transform_to_mesh(pred_mesh_norm, T_pred_to_metric)
+        except Exception as e:
+            print(f"[mesh_eval] Alignment failed: {e}; recording NaN metrics.")
+            self.scene_results.append(MeshEvalResult(scene=scene_token, accuracy=np.nan, completeness=np.nan, overall=np.nan, precision_5cm=np.nan, recall_5cm=np.nan, fscore_5cm=np.nan))
+            return 0
 
         # Save meshes (metric coordinates)
         if bool(getattr(self.cfg, "save_meshes", False)):

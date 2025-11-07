@@ -125,14 +125,14 @@ def save_gaussian_ply(gaussians, visualization_dump, example, save_path):
     #     save_path,
     # )
     
-    # # the third element is fixed (corresponding to the normal direction)
-    ratio = 0.01
-    min_scale_2d, _ = gaussians.scales.min(dim=-1, keepdim=True)
-    # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
-    min_third_scale = 1.e-6
-    third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
-    # Extend the 2D scales to 3D
-    scaling_extended = torch.cat([gaussians.scales, third_scale], dim=-1)
+    # # # the third element is fixed (corresponding to the normal direction)
+    # ratio = 0.01
+    # min_scale_2d, _ = gaussians.scales.min(dim=-1, keepdim=True)
+    # # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
+    # min_third_scale = 1.e-6
+    # third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
+    # # Extend the 2D scales to 3D
+    # scaling_extended = torch.cat([gaussians.scales, third_scale], dim=-1)
     
     
     # print("Exporting Gaussian PLY with the following tensor shapes:")
@@ -145,7 +145,8 @@ def save_gaussian_ply(gaussians, visualization_dump, example, save_path):
     
     export_ply(
         gaussians.means.squeeze(0),
-        scaling_extended.squeeze(0),
+        gaussians.scales.squeeze(0),
+        # scaling_extended.squeeze(0),
         gaussians.rotations.squeeze(0),
         gaussians.harmonics.squeeze(0),
         gaussians.opacities.squeeze(0),
