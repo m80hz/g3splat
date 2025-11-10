@@ -48,7 +48,7 @@ from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 from ..visualization.normal import vis_normal
 from ..geometry.surface_normal import surface_normal_from_depth, get_surface_normal
 from ..geometry.projection import points_to_normal
-from .encoder.common.gaussians import quaternion_to_matrix
+from .encoder.common.gaussians import gaussian_orientation_from_scales
 from .ply_export import save_gaussian_ply
 from ..misc.mesh_utils import GaussianMeshExtractor, post_process_mesh
 
@@ -332,14 +332,11 @@ class ModelWrapper(LightningModule):
         gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
         context1_gaussian_opacities = gaussian_opacities[:, 0, ...]     # shape (B, H, W, 1)
 
-        # Normalize the quaternions to ensure they are unit quaternions.
-        context1_gaussian_rotations_norm = context1_gaussian_rotations / context1_gaussian_rotations.norm(dim=-1, keepdim=True)
-
-        # Convert quaternions to rotation matrices. The resulting shape is (B, H, W, 3, 3).
-        gaussian_rot_matrices = quaternion_to_matrix(context1_gaussian_rotations_norm)
-
-        # Extract the third column from each rotation matrix, which represents the surfel normal.
-        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 2]  # shape: (B, H, W, 3)
+        # Align normals with the smallest-scale axis of each Gaussian.
+        gaussian_surfels_normals = gaussian_orientation_from_scales(
+            context1_gaussian_rotations,
+            context1_gaussian_scales,
+        )  # shape: (B, H, W, 3)
 
         # Visualize the selected normals.
         gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
@@ -680,9 +677,9 @@ class ModelWrapper(LightningModule):
         gaussian_rotations = rearrange(gaussian_rotations, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
         contexts_gaussian_rotations = gaussian_rotations[0]     # shape (V, H, W, 4)
 
-        # gaussian_scales = visualization_dump["scales"]
-        # gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
-        # contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 3)
+        gaussian_scales = visualization_dump["scales"]
+        gaussian_scales = rearrange(gaussian_scales, "b (v h w) d -> b v h w d", v=2, h=h, w=w)
+        contexts_gaussian_scales = gaussian_scales[0]     # shape (V, H, W, 3)
         # sorted_contexts_gaussian_scales = torch.sort(contexts_gaussian_scales, dim=-1, descending=True)[0]
         
         
@@ -690,12 +687,11 @@ class ModelWrapper(LightningModule):
         # gaussian_opacities = rearrange(gaussian_opacities, "b v h w srf s -> b v h w (srf s)", v=2, h=h, w=w)
         # contexts_gaussian_opacities = gaussian_opacities[0]     # shape (V, H, W, 1)
 
-        # Normalize the quaternions to ensure they are unit quaternions.
-        contexts_gaussian_rotations_norm = contexts_gaussian_rotations / contexts_gaussian_rotations.norm(dim=-1, keepdim=True)
-        # Convert quaternions to rotation matrices. The resulting shape is (V, H, W, 3, 3).
-        gaussian_rot_matrices = quaternion_to_matrix(contexts_gaussian_rotations_norm)
-        # Extract the third column from each rotation matrix, which represents the surfel normal.
-        gaussian_surfels_normals = gaussian_rot_matrices[..., :, 2]  # shape: (V, H, W, 3)
+        # Align normals with the smallest-scale axis of each Gaussian.
+        gaussian_surfels_normals = gaussian_orientation_from_scales(
+            contexts_gaussian_rotations,
+            contexts_gaussian_scales,
+        )  # shape: (V, H, W, 3)
         # Visualize the selected normals.
         gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0
 

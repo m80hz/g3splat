@@ -12,7 +12,7 @@ from ..model.types import Gaussians
 from .loss import Loss
 
 from ..geometry.projection import points_to_normal
-from ..model.encoder.common.gaussians import quaternion_to_matrix
+from ..model.encoder.common.gaussians import gaussian_orientation_from_scales
 
 
 @dataclass
@@ -29,6 +29,7 @@ class LossNormalCfg:
     depth_disc_multiplier: float = 3.0
     depth_disc_slope: float = 0.1
     huber_delta: float = 0.1        # in cosine space
+    lambda_context_scale_flatten: float = 0.0
 
 
 @dataclass
@@ -48,29 +49,32 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
         # --------------------
         # Context View Loss
         # --------------------
-        if self.cfg.lambda_context_views_normal == 0.0:
-            context_view_loss = torch.tensor(0.0, device=prediction.depth.device)
-        else:
-            # Extract image dimensions; batch["context"]["image"] shape: (B, V, C, H, W), V == 2.
-            B, V, C, H, W = batch["context"]["image"].shape
-            eps = 1e-8  # small constant for numerical stability
+        # Extract image dimensions; batch["context"]["image"] shape: (B, V, C, H, W), V == 2.
+        B, V, C, H, W = batch["context"]["image"].shape
+        eps = 1e-8  # small constant for numerical stability
 
+        context_view_loss = torch.tensor(0.0, device=prediction.depth.device)
+        lambda_ctx_normal = self.cfg.lambda_context_views_normal
+        lambda_ctx_smooth = self.cfg.lambda_context_normal_smoothness
+        need_normals = (lambda_ctx_normal != 0.0) or (lambda_ctx_smooth != 0.0)
+
+        gaussian_scales = rearrange(gaussians.scales, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
+
+        if need_normals:
             # -- compute point-cloud normals --
             all_pts3d = rearrange(gaussians.means, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
             surf_normals_ptc, weights = points_to_normal(all_pts3d)  # (B*V, H, W, 3)
 
             # -- compute gaussian surfel normals --
             gaussian_rot = rearrange(gaussians.rotations, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
-            gaussian_rot = gaussian_rot / (gaussian_rot.norm(dim=-1, keepdim=True) + eps)
-            rot_mats = quaternion_to_matrix(gaussian_rot)  # (B*V, H, W, 3, 3)
-            gs_surfel_normals = rot_mats[..., :, 2]       # (B*V, H, W, 3)
+            gs_surfel_normals = gaussian_orientation_from_scales(gaussian_rot, gaussian_scales)  # (B*V, H, W, 3)
 
             # normalize both sets of normals
             norm_ptc = surf_normals_ptc.norm(dim=-1, keepdim=True)
             norm_gs = gs_surfel_normals.norm(dim=-1, keepdim=True)
             surf_normals = surf_normals_ptc / (norm_ptc + eps)
             gs_normals = gs_surfel_normals / (norm_gs + eps)
-            
+
             if self.cfg.lambda_context_normal_smoothness == 0.0:
                 # -- only normal consistency loss --
                 dot = (surf_normals * gs_normals).sum(-1)
@@ -173,6 +177,12 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
                 context_view_loss = consistency_loss + smoothness_loss
                 if valid_mask.sum().item() < 100:
                     context_view_loss = torch.tensor(0.0, device=prediction.depth.device)
+
+        # -- scale flattening regularization --
+        if self.cfg.lambda_context_scale_flatten != 0.0:
+            min_scales = gaussian_scales.min(dim=-1).values  # (B*V, H, W)
+            scale_reg_loss = self.cfg.lambda_context_scale_flatten * min_scales.mean()
+            context_view_loss = context_view_loss + scale_reg_loss
 
 
         # -----------------------------------
