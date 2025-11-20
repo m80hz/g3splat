@@ -26,7 +26,7 @@ def construct_list_of_attributes(num_rest: int) -> list[str]:
 def export_ply(
     means: Float[Tensor, "gaussian 3"],
     scales: Float[Tensor, "gaussian 3"],
-    rotations: Float[Tensor, "gaussian 4"],
+    rotations: Float[Tensor, "gaussian 4"],   # expected in wxyz order
     harmonics: Float[Tensor, "gaussian 3 d_sh"],
     opacities: Float[Tensor, "gaussian"],
     path: Path,
@@ -42,27 +42,35 @@ def export_ply(
         means = means / scale_factor
         scales = scales / scale_factor
 
-    # Apply the rotation to the Gaussian rotations.
-    rotations = R.from_quat(rotations.detach().cpu().numpy()).as_matrix()
-    rotations = R.from_matrix(rotations).as_quat()
-    x, y, z, w = rearrange(rotations, "g xyzw -> xyzw g")
-    rotations = np.stack((w, x, y, z), axis=-1)
+    # # Apply the rotation to the Gaussian rotations.
+    # rotations = R.from_quat(rotations.detach().cpu().numpy()).as_matrix()
+    # rotations = R.from_matrix(rotations).as_quat()
+    # x, y, z, w = rearrange(rotations, "g xyzw -> xyzw g")
+    # rotations = np.stack((w, x, y, z), axis=-1)
+
+    # rotations are already in wxyz order (model convention); just move to cpu/numpy
+    rotations_np = rotations.detach().cpu().numpy()
 
     # Since current model use SH_degree = 4,
     # which require large memory to store, we can only save the DC band to save memory.
     f_dc = harmonics[..., 0]
     f_rest = harmonics[..., 1:].flatten(start_dim=1)
 
-    dtype_full = [(attribute, "f4") for attribute in construct_list_of_attributes(0 if save_sh_dc_only else f_rest.shape[1])]
+    dtype_full = [
+        (attribute, "f4")
+        for attribute in construct_list_of_attributes(
+            0 if save_sh_dc_only else f_rest.shape[1]
+        )
+    ]
     elements = np.empty(means.shape[0], dtype=dtype_full)
     attributes = [
         means.detach().cpu().numpy(),
-        torch.zeros_like(means).detach().cpu().numpy(),
+        torch.zeros_like(means).detach().cpu().numpy(),        # normals
         f_dc.detach().cpu().contiguous().numpy(),
         f_rest.detach().cpu().contiguous().numpy(),
         opacities[..., None].detach().cpu().numpy(),
         scales.log().detach().cpu().numpy(),
-        rotations,
+        rotations_np,                                          # wxyz
     ]
     if save_sh_dc_only:
         # remove f_rest from attributes

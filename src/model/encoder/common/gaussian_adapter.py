@@ -60,6 +60,7 @@ class GaussianAdapter(nn.Module):
         eps: float = 1e-8,
     ) -> Gaussians:
 
+        # NOTE: NOT USED
         # TODO: needs to be updated for quaternion order (to w, x, y, z) and world representation
 
         device = extrinsics.device
