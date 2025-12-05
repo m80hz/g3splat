@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Literal
 
 import torch
 import torch.nn.functional as F
@@ -17,7 +17,6 @@ class Gaussians:
     means: Float[Tensor, "*batch 3"]
     covariances: Float[Tensor, "*batch 3 3"]
     scales: Float[Tensor, "*batch 3"]
-    # scales: Float[Tensor, "*batch 2"]
     rotations: Float[Tensor, "*batch 4"]
     harmonics: Float[Tensor, "*batch 3 _"]
     opacities: Float[Tensor, " *batch"]
@@ -28,6 +27,7 @@ class GaussianAdapterCfg:
     gaussian_scale_min: float
     gaussian_scale_max: float
     sh_degree: int
+    gaussian_type: Literal["2d", "3d"] = "3d"
 
 
 class GaussianAdapter(nn.Module):
@@ -48,6 +48,39 @@ class GaussianAdapter(nn.Module):
         for degree in range(1, self.cfg.sh_degree + 1):
             self.sh_mask[degree**2 : (degree + 1) ** 2] = 0.1 * 0.25**degree
 
+    # --- helpers shared between 2d/3d variants ---
+
+    def _normalize_quaternion(self, rotations: Tensor, eps: float) -> Tensor:
+        # Quaternions are assumed to be in (w, x, y, z) order
+        return rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
+
+    def _process_sh(
+        self,
+        sh: Tensor,
+        opacities: Tensor,
+    ) -> Tensor:
+        sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
+        return sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
+
+    def _map_raw_scales(self, raw_scales: Tensor) -> Tensor:
+        # Shared nonlinearity used by UnifiedGaussianAdapter (2D and 3D)
+        scales = 0.001 * F.softplus(raw_scales)
+        return scales.clamp_max(0.3)
+
+    def _compute_depth_pixel_scaling(
+        self,
+        depths: Tensor,
+        intrinsics: Tensor,
+        image_shape: tuple[int, int],
+    ) -> Tensor:
+        device = intrinsics.device
+        h, w = image_shape
+        pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=device)
+        multiplier = self.get_scale_multiplier(intrinsics, pixel_size)
+
+        factor = depths * multiplier  # shape (...,)
+        return factor
+
     def forward(
         self,
         extrinsics: Float[Tensor, "*#batch 4 4"],
@@ -59,48 +92,40 @@ class GaussianAdapter(nn.Module):
         image_shape: tuple[int, int],
         eps: float = 1e-8,
     ) -> Gaussians:
+        if self.cfg.gaussian_type == "3d":
+            num_scales = 3
+        else:
+            num_scales = 2
 
-        # NOTE: NOT USED
-        # TODO: needs to be updated for quaternion order (to w, x, y, z) and world representation
+        raw_scales, rotations, sh = raw_gaussians.split(
+            (num_scales, 4, 3 * self.d_sh), dim=-1
+        )
 
-        device = extrinsics.device
-        raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
-
-        # Map scale features to valid scale range.
+        # map raw scales
         scale_min = self.cfg.gaussian_scale_min
         scale_max = self.cfg.gaussian_scale_max
-        # scales = scale_min + (scale_max - scale_min) * scales.sigmoid()
-        scales_2d = scale_min + (scale_max - scale_min) * raw_scales_2d.sigmoid()
+        scales = scale_min + (scale_max - scale_min) * raw_scales.sigmoid()  # (..., 2|3)
 
-        # Normalize the quaternion features to yield a valid quaternion.
-        # rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
-        rotations = torch.nn.functional.normalize(rotations)
-                
-        h, w = image_shape
-        pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=device)
-        multiplier = self.get_scale_multiplier(intrinsics, pixel_size)
-        # Extract quaternion components
-        x, y, z, w = rotations.unbind(dim=-1)
-        # Compute the normal direction's Z-component after rotation
-        normal_z = 1 - 2 * (x**2 + y**2)
-        # Compute depth scaling factor (ensuring no division by zero)
-        depth_scale_factor = 1 / (torch.abs(normal_z) + eps)
-        # Apply depth scaling only to the X and Y dimensions (not Z)
-        depth_scaling = torch.stack([depth_scale_factor, depth_scale_factor], dim=-1)
-        # Apply scaling corrections
-        scales_2d = scales_2d * depths[..., None] * multiplier[..., None] * depth_scaling
+        rotations = self._normalize_quaternion(rotations, eps)
+        
+        factor = self._compute_depth_pixel_scaling(depths, intrinsics, image_shape)
+        scales = scales * factor[..., None]
 
-        scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
+        if self.cfg.gaussian_type == "3d":
+            scales_3d = scales  # (..., 3)
+        else:
+            # Use ratio-based third scale as in UnifiedGaussianAdapter
+            ratio = 0.01
+            min_scale_2d, _ = scales.min(dim=-1, keepdim=True)
+            min_third_scale = 1.0e-6
+            third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
+            scales_3d = torch.cat([scales, third_scale], dim=-1)  # (..., 3)
 
-        sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
-        sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
-
-        # Create world-space covariance matrices.
-        covariances = build_covariance(scaling_extended, rotations)
+        sh = self._process_sh(sh, opacities)
+        covariances = build_covariance(scales_3d, rotations)
         c2w_rotations = extrinsics[..., :3, :3]
         covariances = c2w_rotations @ covariances @ c2w_rotations.transpose(-1, -2)
 
-        # Compute Gaussian means.
         origins, directions = get_world_rays(coordinates, extrinsics, intrinsics)
         means = origins + directions * depths[..., None]
 
@@ -110,10 +135,10 @@ class GaussianAdapter(nn.Module):
             # harmonics=rotate_sh(sh, c2w_rotations[..., None, :, :]),
             harmonics=sh,
             opacities=opacities,
-            # Note: These aren't yet rotated into world space, but they're only used for
-            # exporting Gaussians to ply files. This needs to be fixed...
-            scales=scales_2d,
-            rotations=rotations.broadcast_to((*scales_2d.shape[:-1], 4)),
+            scales=scales_3d,  # always 3D scales
+            # Note: rotations of the Gaussians built with this variant of the adapter are not 
+            # in the world frame and are left as-is (unlike covariances which are rotated to world frame)
+            rotations=rotations.broadcast_to((*scales_3d.shape[:-1], 4)),
         )
 
     def get_scale_multiplier(
@@ -135,7 +160,12 @@ class GaussianAdapter(nn.Module):
 
     @property
     def d_in(self) -> int:
-        return 6 + 3 * self.d_sh
+        if self.cfg.gaussian_type == "3d":
+            # 3 for scale + 4 for rotation + 3*d_sh for harmonics
+            return 7 + 3 * self.d_sh
+        else:
+            # 2 for scale + 4 for rotation + 3*d_sh for harmonics
+            return 6 + 3 * self.d_sh
 
 
 class UnifiedGaussianAdapter(GaussianAdapter):
@@ -149,34 +179,31 @@ class UnifiedGaussianAdapter(GaussianAdapter):
         intrinsics: Optional[Float[Tensor, "*#batch 3 3"]] = None,
         coordinates: Optional[Float[Tensor, "*#batch 2"]] = None,
     ) -> Gaussians:
+        if self.cfg.gaussian_type == "2d":
+            raw_scales_2d, rotations, sh = raw_gaussians.split((2, 4, 3 * self.d_sh), dim=-1)
+            scales_2d = self._map_raw_scales(raw_scales_2d)
+            ratio = 0.01
+            min_scale_2d, _ = scales_2d.min(dim=-1, keepdim=True)
+            min_third_scale = 1.0e-6
+            third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
+            scales_3d = torch.cat([scales_2d, third_scale], dim=-1)
+            rotations = self._normalize_quaternion(rotations, eps)
+            sh = self._process_sh(sh, opacities)
+            covariances = build_covariance(scales_3d, rotations)
+            return Gaussians(
+                means=means,
+                covariances=covariances,
+                harmonics=sh,
+                opacities=opacities,
+                scales=scales_3d,
+                rotations=rotations.broadcast_to((*scales_3d.shape[:-1], 4)),
+            )
+
         raw_scales_3d, rotations, sh = raw_gaussians.split((3, 4, 3 * self.d_sh), dim=-1)
-        
-        scales_3d = 0.001 * F.softplus(raw_scales_3d)
-        scales_3d = scales_3d.clamp_max(0.3)
-        # scales_3d = torch.exp(raw_scales_3d)
-
-        # # # the third element is fixed (corresponding to the normal direction)
-        # # scaling_extended = torch.cat([scales_2d, torch.ones_like(scales_2d[..., :1])], dim=-1)
-        # ratio = 0.01
-        # min_scale_2d, _ = scales_2d.min(dim=-1, keepdim=True)
-        # # Enforce a minimum value (e.g., 0.01) to prevent it from becoming too small.
-        # min_third_scale = 1.e-6
-        # third_scale = torch.clamp(min_scale_2d * ratio, min=min_third_scale)
-        #
-        # # Extend the 2D scales to 3D
-        # scaling_extended = torch.cat([scales_2d, third_scale], dim=-1)
-
-        # In our gaussians head, rotations (quaternions as (w, x, y, z)) are represented in the world frame
-        # Normalize the quaternion features to yield a valid quaternion.
-        rotations = rotations / (rotations.norm(dim=-1, keepdim=True) + eps)
-        # rotations = torch.nn.functional.normalize(rotations)
-
-        sh = rearrange(sh, "... (xyz d_sh) -> ... xyz d_sh", xyz=3)
-        sh = sh.broadcast_to((*opacities.shape, 3, self.d_sh)) * self.sh_mask
-
-        # Create world-space covariance matrices.
+        scales_3d = self._map_raw_scales(raw_scales_3d)
+        rotations = self._normalize_quaternion(rotations, eps)
+        sh = self._process_sh(sh, opacities)
         covariances = build_covariance(scales_3d, rotations)
-
         return Gaussians(
             means=means,
             covariances=covariances,
@@ -185,10 +212,4 @@ class UnifiedGaussianAdapter(GaussianAdapter):
             scales=scales_3d,
             rotations=rotations.broadcast_to((*scales_3d.shape[:-1], 4)),
         )
-        
-    @property
-    def d_in(self) -> int:
-        # 3 for scale + 4 for rotation + 3*d_sh for harmonics
-        return 7 + 3 * self.d_sh
-
 

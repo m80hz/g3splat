@@ -11,6 +11,8 @@ from ..types import Gaussians
 from .cuda_splatting import DepthRenderingMode, render_cuda, render_cuda_3d
 from .decoder import Decoder, DecoderOutput
 
+DecoderType = Literal["2D", "3D"]
+
 
 @dataclass
 class DecoderSplattingCUDACfg:
@@ -49,10 +51,10 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         depth_mode: DepthRenderingMode | None = None,
         cam_rot_delta: Float[Tensor, "batch view 3"] | None = None,
         cam_trans_delta: Float[Tensor, "batch view 3"] | None = None,
-        decoder_type: str = "3D"
+        decoder_type: DecoderType = "3D",
     ) -> DecoderOutput:
         b, v, _, _ = extrinsics.shape
-        
+        decoder_type = decoder_type.upper()
         if decoder_type == "2D":
             color, alpha, rend_normal, dist, depth, surf_normal = render_cuda(
                 rearrange(extrinsics, "b v i j -> (b v) i j"),

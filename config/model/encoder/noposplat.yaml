@@ -18,6 +18,7 @@ gaussian_adapter:
   gaussian_scale_min: 0.5
   gaussian_scale_max: 15.0
   sh_degree: 4
+  gaussian_type: 3d   # options: 3d (default), 2d
 
 d_feature: 128
 

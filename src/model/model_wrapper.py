@@ -43,6 +43,7 @@ from ..visualization.color_map import apply_color_map_to_image
 from ..visualization.layout import add_border, hcat, vcat
 from ..visualization.validation_in_3d import render_cameras, render_projections
 from .decoder.decoder import Decoder, DepthRenderingMode
+from .decoder.decoder_splatting_cuda import DecoderType
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 from ..visualization.normal import vis_normal
@@ -141,6 +142,10 @@ class ModelWrapper(LightningModule):
         # This is used for testing.
         self.benchmarker = Benchmarker()
 
+    def _decoder_type(self) -> DecoderType:
+        gt = getattr(self.encoder.gaussian_adapter.cfg, "gaussian_type", "3d")
+        return "3D" if str(gt).lower() == "3d" else "2D"
+
     def training_step(self, batch, batch_idx):
         # combine batch from different dataloaders
         if isinstance(batch, list):
@@ -174,6 +179,7 @@ class ModelWrapper(LightningModule):
             batch["target"]["far"],
             (h, w),
             depth_mode=self.train_cfg.depth_mode,
+            decoder_type=self._decoder_type(),
         )
         target_gt = batch["target"]["image"]
 
@@ -259,6 +265,7 @@ class ModelWrapper(LightningModule):
                     batch["target"]["near"],
                     batch["target"]["far"],
                     (h, w),
+                    decoder_type=self._decoder_type(),
                 )
 
         # compute scores
@@ -557,7 +564,7 @@ class ModelWrapper(LightningModule):
                         (h, w),
                         cam_rot_delta=cam_rot_delta,
                         cam_trans_delta=cam_trans_delta,
-                        decoder_type="3D"
+                        decoder_type=self._decoder_type(),
                     )
 
                     # Compute and log loss.
@@ -625,7 +632,8 @@ class ModelWrapper(LightningModule):
             batch["target"]["near"],
             batch["target"]["far"],
             (h, w),
-            "depth",
+            depth_mode="depth",
+            decoder_type=self._decoder_type(),
         )
         rgb_pred = output.color[0]
         depth_pred = vis_depth_map(output.depth[0])
@@ -901,7 +909,7 @@ class ModelWrapper(LightningModule):
         near = repeat(batch["context"]["near"][:, 0], "b -> b v", v=num_frames)
         far = repeat(batch["context"]["far"][:, 0], "b -> b v", v=num_frames)
         output = self.decoder.forward(
-            gaussians, extrinsics, intrinsics, near, far, (h, w), "depth"
+            gaussians, extrinsics, intrinsics, near, far, (h, w), "depth", decoder_type=self._decoder_type()
         )
         images = [
             vcat(rgb, depth)

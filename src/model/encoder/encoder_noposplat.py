@@ -208,7 +208,7 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
                 depths, "b v (h w) srf s -> b v h w srf s", h=h, w=w
             )
             visualization_dump["scales"] = rearrange(
-                gaussians.scales, "b v r srf spp xy -> b (v r srf spp) xy"
+                gaussians.scales, "b v r srf spp xyz -> b (v r srf spp) xyz"
             )
             visualization_dump["rotations"] = rearrange(
                 gaussians.rotations, "b v r srf spp wxyz -> b (v r srf spp) wxyz"
@@ -231,7 +231,7 @@ class EncoderNoPoSplat(Encoder[EncoderNoPoSplatCfg]):
             ),
             rearrange(
                 gaussians.scales,
-                "b v r srf spp ss -> b (v r srf spp) ss",
+                "b v r srf spp xyz -> b (v r srf spp) xyz",
             ),
             rearrange(
                 gaussians.rotations,
