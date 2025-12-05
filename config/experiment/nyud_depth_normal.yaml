@@ -4,11 +4,11 @@ defaults:
   - /dataset@_group_.nyud_depth: nyud_depth
   - override /model/encoder: noposplat
   - override /model/encoder/backbone: croco
-  - override /loss: [mse, lpips, grid, normal]
+  - override /loss: [mse, lpips, normal]
 
 wandb:
-  name: re10k_nyud_depth_grid_normal
-  tags: [re10k_nyud_depth_grid_normal, 256x256]
+  name: re10k_nyud_depth_normal
+  tags: [re10k_nyud_depth_normal, 256x256]
 
 model:
   encoder:
