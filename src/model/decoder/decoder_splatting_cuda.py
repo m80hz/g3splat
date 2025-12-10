@@ -77,7 +77,6 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 expected_depth=self.expected_depth,
             )
         elif decoder_type == "3D":
-            # only used for camera pose optimisation
             color, alpha, rend_normal, dist, depth, surf_normal = render_cuda_3d(
                 rearrange(extrinsics, "b v i j -> (b v) i j"),
                 rearrange(intrinsics, "b v i j -> (b v) i j"),

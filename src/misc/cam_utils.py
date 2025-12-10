@@ -176,7 +176,7 @@ def get_pnp_pose(pts3d, opacity, K, H, W, opacity_threshold=0.3, return_inliers:
     use_ransac : bool, default True
         If True use cv2.solvePnPRansac, else use cv2.solvePnP with SOLVEPNP_ITERATIVE on all surviving points.
     """
-    pixels = np.mgrid[:W, :H].T.astype(np.float32)
+    pixels = np.mgrid[:W, :H].T.astype(np.float32)  # (H, W, 2)  [...,0]=x, [...,1]=y
     pts3d_np = pts3d.cpu().numpy()
     opacity_np = opacity.cpu().numpy()
     K_np = K.cpu().numpy()
