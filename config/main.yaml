@@ -57,7 +57,7 @@ test:
   rot_opt_lr:  0.005
   trans_opt_lr:  0.005
   compute_scores: true
-  save_image: true
+  save_image: false
   save_video: false
   save_compare: false
   save_gaussian: false

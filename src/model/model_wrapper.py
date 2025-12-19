@@ -343,7 +343,6 @@ class ModelWrapper(LightningModule):
         gaussian_surfels_normals = gaussian_orientation_from_scales(
             context1_gaussian_rotations,
             context1_gaussian_scales,
-            column=2,
         )  # shape: (B, H, W, 3)
 
         # Visualize the selected normals.
@@ -700,7 +699,6 @@ class ModelWrapper(LightningModule):
         gaussian_surfels_normals = gaussian_orientation_from_scales(
             contexts_gaussian_rotations,
             contexts_gaussian_scales,
-            column=2,
         )  # shape: (V, H, W, 3)
         # Visualize the selected normals.
         gaussian_normal_vis = vis_normal(gaussian_surfels_normals).permute(0, 3, 1, 2).float() / 255.0

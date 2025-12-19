@@ -67,7 +67,7 @@ class LossNormal(Loss[LossNormalCfg, LossNormalCfgWrapper]):
 
             # -- compute gaussian surfel normals --
             gaussian_rot = rearrange(gaussians.rotations, "b (v h w) d -> (b v) h w d", v=V, h=H, w=W)
-            gs_surfel_normals = gaussian_orientation_from_scales(gaussian_rot, gaussian_scales, column=2)  # (B*V, H, W, 3)
+            gs_surfel_normals = gaussian_orientation_from_scales(gaussian_rot, gaussian_scales)  # (B*V, H, W, 3)
 
             # normalize both sets of normals
             norm_ptc = surf_normals_ptc.norm(dim=-1, keepdim=True)
