@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>G³Splat — Geometrically Consistent Generalizable Gaussian Splatting</title>
+  <meta name="description" content="G³Splat: Geometrically Consistent Generalizable Gaussian Splatting." />
+
+  <meta property="og:title" content="G³Splat" />
+  <meta property="og:description" content="Geometrically Consistent Generalizable Gaussian Splatting." />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Academicons for the arXiv icon (ai ai-arxiv). -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css" />
+
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="header">
+    <div class="container">
+      <div class="header-inner">
+        <a class="brand" href="#top" aria-label="G3Splat home">
+          <span class="brand-badge" aria-hidden="true"></span>
+          <span class="brand-title">
+            <strong>G<sup>3</sup>Splat</strong>
+            <span>Project Page</span>
+          </span>
+        </a>
+
+        <div class="header-actions">
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme" title="Theme">
+            Theme: System
+          </button>
+
+          <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-nav">
+            Menu
+          </button>
+        </div>
+
+        <nav class="nav" id="site-nav" data-nav>
+          <a href="#abstract">Abstract</a>
+          <a href="#method">Method</a>
+          <a href="#results">Results</a>
+          <a href="#citation">BibTeX</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div id="top" class="hero">
+      <div class="container">
+        <div class="hero-grid">
+          <section class="hero-card">
+            <div class="hero-main">
+              <!-- <span class="kicker"><span class="kicker-dot" aria-hidden="true"></span>Geometrically consistent generalizable 3DGS</span> -->
+              <h1>G<sup>3</sup>Splat: Geometrically Consistent Generalizable Gaussian Splatting</h1>
+
+              <div class="paper-meta" aria-label="Authors and affiliations">
+                <div class="authors">
+                  <a href="https://m80hz.github.io/" target="_blank" rel="noopener">Mehdi Hosseinzadeh</a><sup>1</sup>,&nbsp;&nbsp;
+                  <a href="https://sfchng.github.io/" target="_blank" rel="noopener">Shin-Fang Chng</a><sup>2</sup>,&nbsp;&nbsp;
+                  <a href="https://scholar.google.com/citations?user=ldanjkUAAAAJ&hl=en" target="_blank" rel="noopener">Yi Xu</a><sup>2</sup>,&nbsp;&nbsp;
+                  <a href="https://researchers.adelaide.edu.au/profile/simon.lucey" target="_blank" rel="noopener">Simon Lucey</a><sup>1</sup>,&nbsp;&nbsp;
+                  <a href="https://scholar.google.com.au/citations?user=ATkNLcQAAAAJ&hl=en" target="_blank" rel="noopener">Ian Reid</a><sup>1,3</sup>,&nbsp;&nbsp;
+                  <a href="https://researchers.adelaide.edu.au/profile/ravi.garg" target="_blank" rel="noopener">Ravi Garg</a><sup>1</sup>
+                </div>
+                <div class="affiliations">
+                  <sup>1</sup>&nbsp;Australian Institute for Machine Learning, Adelaide University&nbsp;&nbsp;&nbsp;&nbsp;
+                  <sup>2</sup>&nbsp;Goertek Alpha Labs&nbsp;&nbsp;&nbsp;&nbsp;
+                  <sup>3</sup>&nbsp;MBZUAI
+                </div>
+              </div>
+
+              <div class="cta-row cta-row-top" aria-label="Links">
+                <a class="btn primary" href="https://arxiv.org/pdf/0000.00000" target="_blank" rel="noopener">
+                  <span class="icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M7 3h7l4 4v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                      <path d="M14 3v5h5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                      <path d="M8 13h8M8 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                  Paper
+                </a>
+                <a class="btn" href="https://arxiv.org/abs/0000.00000" target="_blank" rel="noopener">
+                  <span class="icon" aria-hidden="true">
+                    <i class="ai ai-arxiv"></i>
+                  </span>
+                  arXiv
+                </a>
+                <a class="btn" href="https://github.com/m80hz/g3splat" target="_blank" rel="noopener">
+                  <span class="icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.76.6-3.34-1.17-3.34-1.17-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.6.07-.6 1 .07 1.52 1.02 1.52 1.02.89 1.52 2.33 1.08 2.9.82.09-.64.35-1.08.63-1.33-2.2-.25-4.52-1.1-4.52-4.9 0-1.08.39-1.97 1.02-2.66-.1-.25-.44-1.26.1-2.63 0 0 .83-.27 2.72 1.02A9.4 9.4 0 0 1 12 6.8c.85 0 1.71.11 2.5.33 1.89-1.29 2.72-1.02 2.72-1.02.54 1.37.2 2.38.1 2.63.63.69 1.02 1.58 1.02 2.66 0 3.81-2.33 4.64-4.55 4.89.36.31.68.92.68 1.86v2.76c0 .26.18.57.69.47A10 10 0 0 0 12 2Z"/>
+                    </svg>
+                  </span>
+                  Code
+                </a>
+              </div>
+
+              <figure class="teaser-figure hero-teaser" aria-label="Teaser figure">
+                <img src="static/images/teaser.png" alt="G3Splat teaser" loading="eager" />
+                <figcaption>
+                  <strong>G<sup>3</sup>Splat enables geometrically consistent, pose-free generalizable Gaussian splatting across backbones.</strong>
+                  <strong>Left:</strong> our VGGT-based adaptation <em>without</em> / <em>with</em> the proposed priors.
+                  <strong>Right:</strong> our DUSt3R-based adaptation <em>without</em> / <em>with</em> the proposed priors.
+                  We visualize reconstructions on a Sora-generated video (150 input views) and RealEstate10K (2 input views).
+                  Our priors encourage <em>geometrically consistent</em> Gaussians and markedly reduce floating artifacts.
+                  Sora prompt: “Generate a video inside the Louvre Museum, including the paintings.”
+                </figcaption>
+              </figure>
+
+              <p class="subtitle">Project page for G<sup>3</sup>Splat.</p>
+
+              <div class="meta-row" aria-label="Metadata">
+                <span class="pill"><strong>Datasets:</strong> RE10K · ACID · ScanNet · NYU Depth V2 · Tanks and Temples · In-the-Wild (Sora-generated)</span>
+                <span class="pill"><strong>Backbones:</strong> VGGT · DUSt3R</span>
+                <span class="pill"><strong>Outputs:</strong> Depth (novel and source views) · Relative Pose · Gaussian Splats · Meshes (from novel views) · Novel View Synthesis · </span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <section id="abstract" class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="title">Abstract</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <p>
+                3D Gaussians have recently emerged as an effective scene representation for real-time splatting and accurate novel-view synthesis, motivating several works to adapt multi-view structure prediction networks to regress per-pixel 3D Gaussians from images. 
+                However, most prior work extends these networks to predict additional Gaussian parameters—orientation, scale, opacity, and appearance—while relying almost exclusively on view-synthesis supervision. 
+                We show that a view-synthesis loss alone is insufficient to recover geometrically meaningful splats in this setting.
+            </p>
+            <p>
+                We analyze and address the ambiguities of learning 3D Gaussian splats under self-supervision for pose-free generalizable splatting, and introduce <em>G<sup>3</sup>Splat</em>, which enforces geometric priors to obtain geometrically consistent 3D scene representations. 
+                Trained on RE10K, our approach achieves state-of-the-art performance in (i) geometrically consistent reconstruction, (ii) relative pose estimation, and (iii) novel-view synthesis. We further demonstrate strong zero-shot generalization on ScanNet, substantially outperforming prior work in both geometry recovery and relative pose estimation. Code and pretrained models are released on our project page.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="title">Method Overview</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="figure">
+              <div class="figure-placeholder">
+                ...
+              </div>
+            </div>
+            <p>
+              Overview ...
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="title">Qualitative Results</div>
+              <div class="hint">Use buttons to switch datasets.</div>
+            </div>
+            <div class="tabs" role="tablist" aria-label="Dataset tabs">
+              <button class="tab" type="button" role="tab" aria-selected="true" data-tab="re10k">RE10K</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scannet">ScanNet</button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <section class="dataset-panel active" data-panel="re10k" aria-label="RE10K results">
+              <h2>RE10K</h2>
+              <p>Inputs are source views; columns compare Ours vs NoPoSplat; GT shown when available.</p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Inputs<br><small>(Source Views)</small></th>
+                    <th>GS Normal<br><small>Source View 1</small></th>
+                    <th>Rendered Color<br><small>Novel View</small></th>
+                    <th>Rendered Depth<br><small>Novel View</small></th>
+                    <th>GT Color<br><small>Novel View</small></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>0fb6678e63316201</code></td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/0fb6678e63316201_context_0_color_000016.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+                      <div><img src="static/images/ours/re10k/0fb6678e63316201_context_1_color_000256.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/0fb6678e63316201_context_0_gs_normal_000016.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/0fb6678e63316201_context_0_gs_normal_000016.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/0fb6678e63316201_target_rendered_depth_000151.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_depth_000151.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center"><img src="static/images/ours/re10k/0fb6678e63316201_target_gt_color_000151.png" width="125" alt="GT Color"><br><sub>GT</sub></td>
+                  </tr>
+
+                  <tr>
+                    <td><code>33288d55dde83e72</code></td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/33288d55dde83e72_context_0_color_000179.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+                      <div><img src="static/images/ours/re10k/33288d55dde83e72_context_1_color_000229.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/33288d55dde83e72_context_0_gs_normal_000179.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/33288d55dde83e72_context_0_gs_normal_000179.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/33288d55dde83e72_target_rendered_depth_000189.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_depth_000189.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center"><img src="static/images/ours/re10k/33288d55dde83e72_target_gt_color_000189.png" width="125" alt="GT Color"><br><sub>GT</sub></td>
+                  </tr>
+
+                  <tr>
+                    <td><code>aef133f549f40970</code></td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/aef133f549f40970_context_0_color_000010.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+                      <div><img src="static/images/ours/re10k/aef133f549f40970_context_1_color_000082.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/aef133f549f40970_context_0_gs_normal_000010.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/aef133f549f40970_context_0_gs_normal_000010.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/re10k/aef133f549f40970_target_rendered_depth_000031.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/re10k/aef133f549f40970_target_rendered_depth_000031.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center"><img src="static/images/ours/re10k/aef133f549f40970_target_gt_color_000031.png" width="125" alt="GT Color"><br><sub>GT</sub></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h2 style="margin-top:18px;">RE10K (Rendered Video)</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Ours</th>
+                    <th>NoPoSplat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>0fb6678e63316201</code><br><small>RGB</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/0fb6678e63316201_target_rendered_color_000151.png">
+                        <source src="static/videos/ours/re10k/0fb6678e63316201_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_color_000151.png">
+                        <source src="static/videos/noposplat/re10k/0fb6678e63316201_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>0fb6678e63316201</code><br><small>Wobble</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/0fb6678e63316201_target_rendered_depth_000151.png">
+                        <source src="static/videos/ours/re10k/0fb6678e63316201_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/0fb6678e63316201_target_rendered_depth_000151.png">
+                        <source src="static/videos/noposplat/re10k/0fb6678e63316201_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>33288d55dde83e72</code><br><small>RGB</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/33288d55dde83e72_target_rendered_color_000189.png">
+                        <source src="static/videos/ours/re10k/33288d55dde83e72_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_color_000189.png">
+                        <source src="static/videos/noposplat/re10k/33288d55dde83e72_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>33288d55dde83e72</code><br><small>Wobble</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/33288d55dde83e72_target_rendered_depth_000189.png">
+                        <source src="static/videos/ours/re10k/33288d55dde83e72_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/33288d55dde83e72_target_rendered_depth_000189.png">
+                        <source src="static/videos/noposplat/re10k/33288d55dde83e72_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>aef133f549f40970</code><br><small>RGB</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/aef133f549f40970_target_rendered_color_000031.png">
+                        <source src="static/videos/ours/re10k/aef133f549f40970_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/aef133f549f40970_target_rendered_color_000031.png">
+                        <source src="static/videos/noposplat/re10k/aef133f549f40970_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>aef133f549f40970</code><br><small>Wobble</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/re10k/aef133f549f40970_target_rendered_depth_000031.png">
+                        <source src="static/videos/ours/re10k/aef133f549f40970_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/re10k/aef133f549f40970_target_rendered_depth_000031.png">
+                        <source src="static/videos/noposplat/re10k/aef133f549f40970_wobble.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h2 style="margin-top:18px;">RE10K (Meshes &amp; Gaussian Splats)</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Ours Mesh</th>
+                    <th>NoPoSplat Mesh</th>
+                    <th>Ours Gaussians</th>
+                    <th>NoPoSplat Gaussians</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>33288d55dde83e72</code></td>
+                    <td><a href="https://skfb.ly/pBzvB" target="_blank" rel="noopener">Ours Mesh</a></td>
+                    <td><a href="https://skfb.ly/pBzw9" target="_blank" rel="noopener">NoPoSplat Mesh</a></td>
+                    <td><a href="https://superspl.at/view?id=56f8e58f" target="_blank" rel="noopener">Ours Gaussian Splats</a></td>
+                    <td><a href="https://superspl.at/view?id=c78141b5" target="_blank" rel="noopener">NoPoSplat Gaussian Splats</a></td>
+                  </tr>
+                  <tr>
+                    <td><code>aef133f549f40970</code></td>
+                    <td><a href="https://skfb.ly/pBzyp" target="_blank" rel="noopener">Ours Mesh</a></td>
+                    <td><a href="https://skfb.ly/pBzyt" target="_blank" rel="noopener">NoPoSplat Mesh</a></td>
+                    <td><a href="https://superspl.at/view?id=faf08cca" target="_blank" rel="noopener">Ours Gaussian Splats</a></td>
+                    <td><a href="https://superspl.at/view?id=dbfe8217" target="_blank" rel="noopener">NoPoSplat Gaussian Splats</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="dataset-panel" data-panel="scannet" aria-label="ScanNet results">
+              <h2>ScanNet</h2>
+              <p>Includes GT depth + GT color for novel views.</p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Inputs<br><small>Source Views</small></th>
+                    <th>GS Normal<br><small>Source View 1</small></th>
+                    <th>Rendered Color<br><small>Novel View</small></th>
+                    <th>Rendered Depth<br><small>Novel View</small></th>
+                    <th>GT Depth<br><small>Novel View</small></th>
+                    <th>GT Color<br><small>Novel View</small></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>scene0689_00_126_133</code></td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0689_00_126_133_context_0_color_000000.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+                      <div><img src="static/images/ours/scannet/scene0689_00_126_133_context_1_color_000001.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0689_00_126_133_context_0_gs_normal_000000.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0689_00_126_133_context_0_gs_normal_000000.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0689_00_126_133_target_rendered_color_000000.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0689_00_126_133_target_rendered_depth_000000.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0689_00_126_133_target_rendered_depth_000000.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center"><img src="static/images/ours/scannet/scene0689_00_126_133_target_gt_depth_000000.png" width="125" alt="GT Depth"><br><sub>GT Depth</sub></td>
+                    <td align="center"><img src="static/images/ours/scannet/scene0689_00_126_133_target_gt_color_000000.png" width="125" alt="GT Color"><br><sub>GT Color</sub></td>
+                  </tr>
+
+                  <tr>
+                    <td><code>scene0698_01_305_314</code></td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0698_01_305_314_context_0_color_000000.png" width="125" alt="Input 1"><br><sub>Input 1</sub></div>
+                      <div><img src="static/images/ours/scannet/scene0698_01_305_314_context_1_color_000001.png" width="125" alt="Input 2"><br><sub>Input 2</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0698_01_305_314_context_0_gs_normal_000000.png" width="125" alt="Ours GS Normal"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0698_01_305_314_context_0_gs_normal_000000.png" width="125" alt="NoPoSplat GS Normal"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="125" alt="Ours Rendered Color"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0698_01_305_314_target_rendered_color_000000.png" width="125" alt="NoPoSplat Rendered Color"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center">
+                      <div><img src="static/images/ours/scannet/scene0698_01_305_314_target_rendered_depth_000000.png" width="125" alt="Ours Rendered Depth"><br><sub>Ours</sub></div>
+                      <div><img src="static/images/noposplat/scannet/scene0698_01_305_314_target_rendered_depth_000000.png" width="125" alt="NoPoSplat Rendered Depth"><br><sub>NoPoSplat</sub></div>
+                    </td>
+                    <td align="center"><img src="static/images/ours/scannet/scene0698_01_305_314_target_gt_depth_000000.png" width="125" alt="GT Depth"><br><sub>GT Depth</sub></td>
+                    <td align="center"><img src="static/images/ours/scannet/scene0698_01_305_314_target_gt_color_000000.png" width="125" alt="GT Color"><br><sub>GT Color</sub></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h2 style="margin-top:18px;">ScanNet (Meshes &amp; Gaussian Splats)</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Ours</th>
+                    <th>NoPoSplat</th>
+                    <th>Ours</th>
+                    <th>NoPoSplat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>scene0689_00_126_133</code></td>
+                    <td><a href="https://skfb.ly/pBztw" target="_blank" rel="noopener">Ours Mesh</a></td>
+                    <td><a href="https://skfb.ly/pBztT" target="_blank" rel="noopener">NoPoSplat Mesh</a></td>
+                    <td><a href="https://superspl.at/view?id=39475637" target="_blank" rel="noopener">Ours Gaussian Splats</a></td>
+                    <td><a href="https://superspl.at/view?id=a01f8468" target="_blank" rel="noopener">NoPoSplat Gaussian Splats</a></td>
+                  </tr>
+                  <tr>
+                    <td><code>scene0698_01_305_314</code></td>
+                    <td><a href="https://skfb.ly/pBz9Q" target="_blank" rel="noopener">Ours Mesh</a></td>
+                    <td><a href="https://skfb.ly/pBz9B" target="_blank" rel="noopener">NoPoSplat Mesh</a></td>
+                    <td><a href="https://superspl.at/view?id=f3c7ccb2" target="_blank" rel="noopener">Ours Gaussian Splats</a></td>
+                    <td><a href="https://superspl.at/view?id=c3b8cf43" target="_blank" rel="noopener">NoPoSplat Gaussian Splats</a></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h2 style="margin-top:18px;">ScanNet (Video Comparisons)</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scene</th>
+                    <th>Ours</th>
+                    <th>NoPoSplat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>scene0689_00_126_133</code><br><small>RGB</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/scannet/scene0689_00_126_133_target_rendered_color_000000.png">
+                        <source src="static/videos/ours/scannet/scene0689_00_126_133_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/scannet/scene0689_00_126_133_target_rendered_color_000000.png">
+                        <source src="static/videos/noposplat/scannet/scene0689_00_126_133_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>scene0698_01_305_314</code><br><small>RGB</small></td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/ours/scannet/scene0698_01_305_314_target_rendered_color_000000.png">
+                        <source src="static/videos/ours/scannet/scene0698_01_305_314_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                    <td align="center">
+                      <video class="video-preview" controls preload="metadata" playsinline muted autoplay loop poster="static/images/noposplat/scannet/scene0698_01_305_314_target_rendered_color_000000.png">
+                        <source src="static/videos/noposplat/scannet/scene0698_01_305_314_rgb.mp4" type="video/mp4" />
+                      </video>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="citation" class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="title">Citation</div>
+              <div class="hint">Please cite our work if you use G3Splat in your research.</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <pre style="margin:0; white-space:pre-wrap; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); padding:14px; border-radius:14px; color:rgba(255,255,255,0.86);">@inproceedings{g3splat,
+            title   = {G3Splat: Geometrically Consistent Generalizable Gaussian Splatting},
+            author  = {Mehdi Hosseinzadeh, Shin-Fang Chng, Yi Xu, Simon Lucey, Ian Reid, Ravi Garg},
+            booktitle = {arXiv preprint arXiv:},
+            year    = {2025}
+            }
+            </pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-grid">
+          <div>© <span id="year">2025</span> G3Splat</div>
+          <div> 
+            Built with ❤️ using custom HTML/CSS/JS            
+          </div>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script src="assets/js/main.js"></script>
+  <script>
+    document.getElementById('year').textContent = String(new Date().getFullYear());
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# Geometrically-Consistent Generalizable Gaussian Splatting 
+# G3Splat: Geometrically Consistent Generalizable Gaussian Splatting 
 
 
 ## RE10K
