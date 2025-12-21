@@ -1,21 +1,23 @@
 <p align="center">
-  <h2 align="center">GeoSplat
-  <br> Geometrically-Consistent Generalizable Splatting </h2>
+  <h2 align="center">G<sup>3</sup>Splat
+  <br> Geometrically Consistent Generalizable Gaussian Splatting </h2>
  <p align="center">
     <a href="https://m80hz.github.io/" target="_blank">Mehdi Hosseinzadeh</a>
     &nbsp;&nbsp;&nbsp;&nbsp;
     <a href="https://sfchng.github.io/" target="_blank">Shin-Fang Chng</a>
     &nbsp;&nbsp;&nbsp;&nbsp;
-    <a href="https://scholar.google.com.au/citations?user=ATkNLcQAAAAJ&hl=en" target="_blank">Ian Reid</a>
+    <a href="https://scholar.google.com/citations?user=ldanjkUAAAAJ&hl=en" target="_blank">Yi Xu</a>
     &nbsp;&nbsp;&nbsp;&nbsp;
     <a href="https://researchers.adelaide.edu.au/profile/simon.lucey" target="_blank">Simon Lucey</a>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://scholar.google.com.au/citations?user=ATkNLcQAAAAJ&hl=en" target="_blank">Ian Reid</a>
     &nbsp;&nbsp;&nbsp;&nbsp;
     <a href="https://researchers.adelaide.edu.au/profile/ravi.garg" target="_blank">Ravi Garg</a>
   </p>
 
   <p align="center">
     <!-- Project page badge -->
-    <a href="https://geosplat.github.io/" target="_blank">
+    <a href="https://m80hz.github.io/g3splat" target="_blank">
       <img
         src="https://img.shields.io/badge/Project_Page-007ACC?style=flat&logo=github&logoColor=white"
         alt="Project Page" 
@@ -23,15 +25,23 @@
     </a>
     &nbsp;
     <!-- arXiv badge -->
-    <a href="https://arxiv.org/abs/ARXIV_ID" target="_blank">
+    <a href="https://arxiv.org/abs/0000.00000" target="_blank">
       <img
         src="https://img.shields.io/badge/Paper-B31B1B?style=flat&logo=arxiv&logoColor=white"
         alt="arXiv" 
         height="25" />
     </a>
     &nbsp;
+    <!-- Code badge -->
+    <a href="https://github.com/m80hz/g3splat" target="_blank">
+      <img
+        src="https://img.shields.io/badge/Code-181717?style=flat&logo=github&logoColor=white"
+        alt="GitHub" 
+        height="25" />
+    </a>
+    &nbsp;
     <!-- Hugging Face badge -->
-    <a href="https://huggingface.co/spaces/m80hz/geosplat" target="_blank">
+    <a href="https://huggingface.co/m80hz/g3splat" target="_blank">
       <img
         src="https://img.shields.io/badge/Hugging%20Face-FF6C37?style=flat&logo=huggingface&logoColor=white"
         alt="Hugging Face" 
@@ -41,7 +51,7 @@
 </p>
 
 <p align="center">
-<strong>GeoSplat</strong> A pose-free self-supervised framework for generalizable 2D Gaussian splatting that delivers state-of-the-art geometry reconstruction, relative pose estimation, and novel-view synthesis.
+<strong>G<sup>3</sup>Splat</strong> is a pose-free self-supervised framework for generalizable Gaussian splatting that delivers state-of-the-art geometry reconstruction, relative pose estimation, and novel-view synthesis.
 </p>
 <br>
 
@@ -60,16 +70,16 @@
 ## Installation and Environment Setup
 Our implementation requires Python 3.10 or later and has been tested with PyTorch 2.1.2 and CUDA 11.8 and 12.1, though it should be compatible with newer PyTorch/CUDA versions as well.
 
-1. Clone GeoSplat.
+1. Clone G3Splat.
 ```bash
-git clone https://github.com/m80hz/GeoSplat
-cd GeoSplat
+git clone https://github.com/m80hz/g3splat
+cd g3splat
 ```
 
 2. Create the conda environment (Python 3.10+) and install dependencies.
 ```bash
-conda create -y -n geosplat python=3.10
-conda activate geosplat
+conda create -y -n g3splat python=3.10
+conda activate g3splat
 pip install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 ```
@@ -83,11 +93,11 @@ cd ../../../../../..
 
 ## Checkpoints
 
-Pretrained model weights are available on [Hugging Face](https://huggingface.co/m80hz/geosplat) 🤗.
+Pretrained model weights are available on [Hugging Face](https://huggingface.co/m80hz/g3splat) 🤗.
 
 | Model Variant                                                                                      | Training Resolution | Training Data     |
 |:--------------------------------------------------------------------------------------------------:|:-------------------:|:-----------------:|
-| [geosplat_grid_normal_re10k.ckpt](https://huggingface.co/m80hz/geosplat/path/to/checkpoint.ckpt)   |        256×256      |   RealEstate10K   |
+| [g3splat_grid_normal_re10k.ckpt](https://huggingface.co/m80hz/g3splat/path/to/checkpoint.ckpt)   |        256×256      |   RealEstate10K   |
 
 After downloading, place the checkpoint file(s) in the `pretrained_weights/` directory.  
 
