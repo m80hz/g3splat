@@ -70,7 +70,7 @@
 ## Installation and Environment Setup
 Our implementation requires Python 3.10 or later and has been tested with PyTorch 2.1.2 and CUDA 11.8 and 12.1, though it should be compatible with newer PyTorch/CUDA versions as well.
 
-1. Clone GeoSplat.
+1. Clone G3Splat.
 ```bash
 git clone https://github.com/m80hz/g3splat
 cd g3splat
@@ -78,8 +78,8 @@ cd g3splat
 
 2. Create the conda environment (Python 3.10+) and install dependencies.
 ```bash
-conda create -y -n geosplat python=3.10
-conda activate geosplat
+conda create -y -n g3splat python=3.10
+conda activate g3splat
 pip install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 ```
@@ -93,7 +93,7 @@ cd ../../../../../..
 
 ## Checkpoints
 
-Pretrained model weights are available on [Hugging Face](https://huggingface.co/m80hz/geosplat) 🤗.
+Pretrained model weights are available on [Hugging Face](https://huggingface.co/m80hz/g3splat) 🤗.
 
 | Model Variant                                                                                      | Training Resolution | Training Data     |
 |:--------------------------------------------------------------------------------------------------:|:-------------------:|:-----------------:|
