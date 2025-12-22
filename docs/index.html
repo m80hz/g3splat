@@ -46,7 +46,8 @@
         <nav class="nav" id="site-nav" data-nav>
           <a href="#abstract">Abstract</a>
           <a href="#method">Method</a>
-          <a href="#results">Results</a>
+          <!-- <a href="#experiments">Experiments</a> -->
+          <!-- <a href="#results-legacy">Results (temp)</a> -->
           <a href="#citation">BibTeX</a>
         </nav>
       </div>
@@ -79,7 +80,7 @@
               </div>
 
               <div class="cta-row cta-row-top" aria-label="Links">
-                <a class="btn primary" href="https://arxiv.org/pdf/0000.00000" target="_blank" rel="noopener">
+                <a class="btn primary" href="https://arxiv.org/pdf/2512.17547" target="_blank" rel="noopener">
                   <span class="icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M7 3h7l4 4v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -89,19 +90,20 @@
                   </span>
                   Paper
                 </a>
-                <a class="btn" href="https://arxiv.org/abs/0000.00000" target="_blank" rel="noopener">
+                <a class="btn" href="https://arxiv.org/abs/2512.17547" target="_blank" rel="noopener">
                   <span class="icon" aria-hidden="true">
                     <i class="ai ai-arxiv"></i>
                   </span>
                   arXiv
                 </a>
-                <a class="btn" href="https://github.com/m80hz/g3splat" target="_blank" rel="noopener">
+                <!-- <a class="btn" href="https://github.com/m80hz/g3splat" target="_blank" rel="noopener"> -->
+                <a class="btn" target="_blank" rel="noopener">
                   <span class="icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                       <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.76.6-3.34-1.17-3.34-1.17-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.6.07-.6 1 .07 1.52 1.02 1.52 1.02.89 1.52 2.33 1.08 2.9.82.09-.64.35-1.08.63-1.33-2.2-.25-4.52-1.1-4.52-4.9 0-1.08.39-1.97 1.02-2.66-.1-.25-.44-1.26.1-2.63 0 0 .83-.27 2.72 1.02A9.4 9.4 0 0 1 12 6.8c.85 0 1.71.11 2.5.33 1.89-1.29 2.72-1.02 2.72-1.02.54 1.37.2 2.38.1 2.63.63.69 1.02 1.58 1.02 2.66 0 3.81-2.33 4.64-4.55 4.89.36.31.68.92.68 1.86v2.76c0 .26.18.57.69.47A10 10 0 0 0 12 2Z"/>
                     </svg>
                   </span>
-                  Code
+                  Code (Soon)
                 </a>
               </div>
 
@@ -116,8 +118,6 @@
                   Sora prompt: “Generate a video inside the Louvre Museum, including the paintings.”
                 </figcaption>
               </figure>
-
-              <p class="subtitle">Project page for G<sup>3</sup>Splat.</p>
 
               <div class="meta-row" aria-label="Metadata">
                 <span class="pill"><strong>Datasets:</strong> RE10K · ACID · ScanNet · NYU Depth V2 · Tanks and Temples · In-the-Wild (Sora-generated)</span>
@@ -159,38 +159,405 @@
           <div class="card-header">
             <div>
               <div class="title">Method Overview</div>
+              <div class="hint">Why priors matter: without them, self-supervised Gaussian parameters are ill-posed.</div>
             </div>
           </div>
           <div class="card-body">
-            <div class="figure">
-              <div class="figure-placeholder">
-                ...
-              </div>
-            </div>
             <p>
-              Overview ...
+              <strong>G<sup>3</sup>Splat</strong> targets <em>generalizable Gaussian splatting</em>: instead of per-scene optimization,
+              a feed-forward model predicts a dense set of per-pixel 3D Gaussians (means, scales, orientations, opacity, appearance)
+              from a few input views.
             </p>
+
+
+          <div class="callout">
+            <strong>Why priors matter:</strong> view-synthesis supervision alone can match target images while still producing
+            <em>geometrically degenerate</em> Gaussians—means can look plausible, yet orientations and scales drift (and opacities may become unstable).
+            This comes from three coupled issues highlighted in the paper:
+            <ul class="bullets" style="margin:10px 0 0;">
+              <li><strong>Overparameterization:</strong> Gaussians are richer than depth/points, but generalizable training often lacks matching geometric constraints.</li>
+              <li><strong>Geometric ambiguity:</strong> many different Gaussian configurations can render similarly, so photometric supervision can “explain images” without recovering geometry.</li>
+              <li><strong>Lack of heuristics:</strong> per-scene 3DGS relies on split/duplicate/prune heuristics; feed-forward predictors keep everything “alive”, amplifying failure modes.</li>
+            </ul>
+          </div>
+
+          <p>
+            We address this by adding a small set of <em>geometry-minded priors</em> that are lightweight, backbone-agnostic,
+            and compatible with both full-rank 3DGS and surfel-like 2DGS. The goal is turning self-supervised learning 
+            into a problem that explicitly favors <em>geometrically consistent</em> splats.
+          </p>
+
+          <div class="pill-row" aria-label="Priors">
+            <span class="pill-mini">Orientation prior</span>
+            <span class="pill-mini">Pixel-alignment prior</span>
+            <span class="pill-mini">(3DGS) scale regularization</span>
+          </div>
+
+          <ul class="bullets">
+            <li>
+              <strong>Orientation prior:</strong> encourages each Gaussian to behave like a tiny surface element—so orientations track local surface geometry
+              rather than texture or view-synthesis quirks.
+            </li>
+            <li>
+              <strong>Pixel-alignment prior:</strong> ties each predicted Gaussian back to its originating pixel, reducing structure–pose ambiguity and stabilizing
+              pose-free reconstruction.
+            </li>
+            <li>
+              <strong>Scale regularization (3DGS):</strong> discourages near-isotropic “blobs” in the full 3DGS setting, biasing Gaussians toward more surfel-like
+              anisotropy when that improves geometric stability.
+            </li>
+          </ul>
+
+          <details class="details">
+            <summary>What changes “without priors” vs “with priors”?</summary>
+            <p class="small-note" style="margin:8px 0 0;">
+              In short: <em>without</em> priors, models can render well while learning unstable orientations/scales; <em>with</em> priors, the learned Gaussians become more
+              surface-consistent, which supports reliable depth rendering, TSDF-fused meshes, and stronger relative pose estimation. The paper has the full breakdown,
+              ablations, and comparisons.
+            </p>
+
+            <figure class="figure" style="margin-top:12px;">
+              <img src="static/images/gaussians_viz.png" alt="Qualitative comparison of predicted Gaussian parameters" />
+              <figcaption>
+                <strong>Qualitative comparison of predicted Gaussian parameters.</strong>
+                A visual sanity check of what Gaussians “mean” in practice: baselines often learn orientations/scales that look plausible for rendering but are weak as geometry,
+                while our priors yield more coherent surface structure and fewer floating artifacts. (See the paper for definitions and details.)
+              </figcaption>
+            </figure>
+          </details>
+
           </div>
         </div>
       </div>
     </section>
 
-    <section id="results" class="section">
+    <section class="section" aria-label="Reconstructed Gaussians interactive demo">
+      <div class="container">
+        <div class="splat-showcase" aria-label="Interactive Gaussian splats">
+          <div class="splat-showcase-head">
+            <div>
+              <div class="splat-title">Reconstructed Gaussians (Interactive Demo)</div>
+            </div>
+          </div>
+
+          <div class="splat-grid" role="table" aria-label="Splat comparisons">
+            <div class="splat-grid-head" role="row">
+              <div class="splat-grid-colhead" role="columnheader">Datasets - Input Views</div>
+              <div class="splat-grid-colhead" role="columnheader">Reconstructed Gaussians Without Priors</div>
+              <div class="splat-grid-colhead" role="columnheader">Reconstructed Gaussians With Our Priors</div>
+            </div>
+
+            <div class="splat-grid-row" role="row" aria-label="RE10K comparison">
+              <div class="splat-input" role="cell">
+                <div class="splat-dataset">RealEstate10K</div>
+                <div class="splat-dataset-hint">2 input views.</div>
+                <div class="splat-input-media" aria-label="RE10K input images">
+                  <img src="static/images/ours/re10k/33288d55dde83e72_context_0_color_000179.png" alt="RE10K input image 1" loading="lazy" />
+                  <img src="static/images/ours/re10k/33288d55dde83e72_context_1_color_000229.png" alt="RE10K input image 2" loading="lazy" />
+                </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">DUSt3R Adaptation (Without Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="RE10K without priors (SuperSplat)" src="https://superspl.at/view?id=c78141b5" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=c78141b5" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">DUSt3R Adaptation (With Our Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="RE10K with priors (SuperSplat)" src="https://superspl.at/view?id=56f8e58f" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=56f8e58f" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="splat-grid-row" role="row" aria-label="Sora comparison">
+              <div class="splat-input" role="cell">
+                <div class="splat-dataset">Sora-generated</div>
+                <div class="splat-dataset-hint">Prompt used to generate the video: "A single unbroken orbital camera move through a vast, empty gothic library, with static architecture, medium-wide framing, warm steady lighting, and crisp sharp geometric details".</div>
+                <div class="splat-dataset-hint">24 Input Views.</div>
+                <video class="video-preview splat-input-video" controls preload="metadata" playsinline muted autoplay loop poster="static/images/teaser.png">
+                  <source src="static/videos/sora_library.mp4" type="video/mp4" />
+                </video>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">VGGT Adaptation (Without Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="Sora without priors (SuperSplat)" id="viewer" width="800" height="500" allow="fullscreen; xr-spatial-tracking" src="https://superspl.at/view?id=f2a322b9" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=f2a322b9" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">VGGT Adaptation (With Our Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="Sora with priors (SuperSplat)" src="https://superspl.at/view?id=51bac0ae" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=51bac0ae" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="splat-grid-row" role="row" aria-label="ScanNet comparison">
+              <div class="splat-input" role="cell">
+                <div class="splat-dataset">ScanNet</div>
+                <div class="splat-dataset-hint">2 input views.</div>
+                <div class="splat-input-media" aria-label="ScanNet input images">
+                  <img src="static/images/ours/scannet/scene0698_01_305_314_context_0_color_000000.png" alt="ScanNet input image 1" loading="lazy" />
+                  <img src="static/images/ours/scannet/scene0698_01_305_314_context_1_color_000001.png" alt="ScanNet input image 2" loading="lazy" />
+                </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">DUSt3R Adaptation (Without Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="ScanNet without priors (SuperSplat)" src="https://superspl.at/view?id=c3b8cf43" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=c3b8cf43" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">DUSt3R Adaptation (With Our Priors)</div>
+                <details class="details" open>
+                  <summary>Viewer</summary>
+                  <div class="splat-embed">
+                    <iframe title="ScanNet with priors (SuperSplat)" src="https://superspl.at/view?id=f3c7ccb2" loading="lazy"></iframe>
+                  </div>
+                </details>
+                <div class="splat-links">
+                  <a href="https://superspl.at/view?id=f3c7ccb2" target="_blank" rel="noopener">Open in SuperSplat</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="splat-grid-row" role="row" aria-label="TnT comparison">
+              <div class="splat-input" role="cell">
+                <div class="splat-dataset">Tanks and Temples </div>
+                <div class="splat-dataset-hint">Francis Scene.</div>
+                <div class="splat-dataset-hint">20 Input Views.</div>
+                <video class="video-preview splat-input-video" controls preload="metadata" playsinline muted autoplay loop poster="static/images/teaser.png">
+                  <source src="static/videos/tnt_francis.mp4" type="video/mp4" />
+                </video>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">VGGT Adaptation (Without Priors)</div>
+                  <div class="splat-viewer-image" aria-label="TnT Gaussians images">
+                    <img
+                      src="static/images/ours/tnt/francis_baseline.png"
+                      alt="TnT Gaussians without priors"
+                      loading="lazy"
+                      style="width:100%; height:auto; display:block; margin:0 auto;"
+                    />
+                  </div>
+              </div>
+
+              <div class="splat-cell" role="cell">
+                <div class="splat-cell-title">VGGT Adaptation (With Our Priors)</div>
+                  <div class="splat-viewer-image" aria-label="TnT Gaussians images">
+                    <img
+                      src="static/images/ours/tnt/francis_ours.png"
+                      alt="TnT Gaussians with our priors"
+                      loading="lazy"
+                      style="width:100%; height:auto; display:block; margin:0 auto;"
+                    />
+                  </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXPERIMENTS SECTION (commented out for now)
+    <section id="experiments" class="section">
       <div class="container">
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="title">Qualitative Results</div>
-              <div class="hint">Use buttons to switch datasets.</div>
+              <div class="title">Experiments</div>
+              <div class="hint">Explore geometry, pose, Gaussian diagnostics, and novel view synthesis.</div>
             </div>
-            <div class="tabs" role="tablist" aria-label="Dataset tabs">
+            <div class="tabs" role="tablist" aria-label="Experiment tabs" data-tabset="experiments">
+              <button class="tab" type="button" role="tab" aria-selected="true" data-tab="geometry">Geometry</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-tab="pose">Relative Pose</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-tab="gaussians">Gaussians</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-tab="nvs">Novel Views</button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <section class="dataset-panel active" data-panel="geometry" data-tabset="experiments" aria-label="Geometry evaluation">
+              <h2>Geometry Evaluation (Depth &amp; Mesh)</h2>
+              <p>
+                The main goal of <em>G<sup>3</sup>Splat</em> is <strong>geometric consistency</strong> of the predicted splats.
+                Beyond source-view depth, we evaluate geometry by rendering virtual novel-view depths from the reconstructed Gaussians and
+                fusing them into meshes via TSDF fusion.
+              </p>
+
+              <details class="details" open>
+                <summary>Evaluation protocol (high-level)</summary>
+                <ul class="bullets">
+                  <li><strong>Depth:</strong> render novel-view depth maps from the predicted Gaussians and report errors/accuracies (e.g., AbsRel and thresholded accuracy).</li>
+                  <li><strong>Meshes:</strong> render depths along an interpolated camera path between the source views and fuse with TSDF to reconstruct a mesh for metric comparison.</li>
+                  <li><strong>Key comparison:</strong> the “no prior” model vs. the same architecture trained <em>with</em> the proposed priors.</li>
+                </ul>
+              </details>
+
+              <div class="callout">
+                <strong>Coming next:</strong> we’ll replace this placeholder table with the paper’s depth/mesh numbers and ablations (e.g., “Align”, “Orient”, “Align+Orient”).
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Without Priors</th>
+                    <th>With Priors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Rendered Depth (Novel Views): AbsRel ↓</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>Rendered Depth (Novel Views): δ&lt;1.10 ↑</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>Mesh (TSDF): Chamfer ↓</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="dataset-panel" data-panel="pose" data-tabset="experiments" aria-label="Relative pose estimation">
+              <h2>Relative Pose Estimation</h2>
+              <p>
+                We evaluate relative pose from image pairs using PnP-based estimation on the predicted Gaussian means.
+                The priors improve pose accuracy by producing more reliable, pixel-aligned geometry.
+              </p>
+
+              <details class="details" open>
+                <summary>What we report</summary>
+                <ul class="bullets">
+                  <li><strong>AUC</strong> of the cumulative pose error curve at multiple thresholds (e.g., 5°, 10°, 20°).</li>
+                  <li><strong>Translation/rotation error</strong> under least-squares PnP as a proxy for structure quality.</li>
+                </ul>
+              </details>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Setting</th>
+                    <th>Without Priors</th>
+                    <th>With Priors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>AUC@5° / 10° / 20° ↑</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>PnP (LS): Translation ↓</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>PnP (LS): Rotation ↓</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="dataset-panel" data-panel="gaussians" data-tabset="experiments" aria-label="Gaussian parameter diagnostics">
+              <h2>Gaussian Diagnostics (Figure 2 Style)</h2>
+              <p>
+                The priors are designed to fix the failure modes highlighted in the paper: incorrect Gaussian orientations and degenerate covariances
+                that can still explain images under view-synthesis supervision.
+              </p>
+
+              <div class="figure">
+                <div class="figure-placeholder">
+                  <strong>Interactive Figure 2 gallery (placeholder).</strong>
+                  We’ll add the Figure 2 image here and optionally allow toggling between “without priors” and “with priors” overlays.
+                </div>
+              </div>
+
+              <ul class="bullets">
+                <li><strong>Orientations:</strong> normals become surface-consistent (less texture-driven) with the orientation prior.</li>
+                <li><strong>Scales:</strong> priors reduce unjustified elongation/collapse and improve stability of Gaussian anisotropy.</li>
+                <li><strong>Edges:</strong> edge-aware weighting focuses supervision away from depth discontinuities.</li>
+              </ul>
+            </section>
+
+            <section class="dataset-panel" data-panel="nvs" data-tabset="experiments" aria-label="Novel view synthesis">
+              <h2>Novel View Synthesis</h2>
+              <p>
+                While geometry is the primary focus, the model also produces strong novel-view synthesis.
+                We keep a temporary set of looping video comparisons below while we redesign this section around “without vs with priors”.
+              </p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+    -->
+
+    <!-- TEMP RESULTS SECTION (commented out for now)
+    <section id="results-legacy" class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="title">Qualitative Results (Temporary)</div>
+              <div class="hint">This dataset-wise layout will be removed after the redesign.</div>
+            </div>
+            <div class="tabs" role="tablist" aria-label="Dataset tabs" data-tabset="legacy">
               <button class="tab" type="button" role="tab" aria-selected="true" data-tab="re10k">RE10K</button>
               <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scannet">ScanNet</button>
             </div>
           </div>
 
           <div class="card-body">
-            <section class="dataset-panel active" data-panel="re10k" aria-label="RE10K results">
+            <section class="dataset-panel active" data-panel="re10k" data-tabset="legacy" aria-label="RE10K results">
               <h2>RE10K</h2>
               <p>Inputs are source views; columns compare Ours vs NoPoSplat; GT shown when available.</p>
 
@@ -392,7 +759,7 @@
               </table>
             </section>
 
-            <section class="dataset-panel" data-panel="scannet" aria-label="ScanNet results">
+            <section class="dataset-panel" data-panel="scannet" data-tabset="legacy" aria-label="ScanNet results">
               <h2>ScanNet</h2>
               <p>Includes GT depth + GT color for novel views.</p>
 
@@ -527,6 +894,7 @@
         </div>
       </div>
     </section>
+    -->
 
     <section id="citation" class="section">
       <div class="container">
@@ -534,17 +902,27 @@
           <div class="card-header">
             <div>
               <div class="title">Citation</div>
-              <div class="hint">Please cite our work if you use G3Splat in your research.</div>
+                <!-- <pre style="margin:0; white-space:pre-wrap; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); padding:14px; border-radius:14px; color:rgba(255,255,255,0.86);">
+                  @inproceedings{g3splat,
+                        title={G3Splat: Geometrically Consistent Generalizable Gaussian Splatting}, 
+                        author={Mehdi Hosseinzadeh and Shin-Fang Chng and Yi Xu and Simon Lucey and Ian Reid and Ravi Garg},
+                        booktitle = {arXiv:2512.17547},
+                        year={2025},
+                        url={https://arxiv.org/abs/2512.17547}, 
+                  }
+                </pre> -->
             </div>
           </div>
-          <div class="card-body">
-            <pre style="margin:0; white-space:pre-wrap; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); padding:14px; border-radius:14px; color:rgba(255,255,255,0.86);">@inproceedings{g3splat,
-            title   = {G3Splat: Geometrically Consistent Generalizable Gaussian Splatting},
-            author  = {Mehdi Hosseinzadeh, Shin-Fang Chng, Yi Xu, Simon Lucey, Ian Reid, Ravi Garg},
-            booktitle = {arXiv preprint arXiv:},
-            year    = {2025}
-            }
-            </pre>
+            <div class="card-body">
+              <pre class="citation-bibtex">
+@inproceedings{g3splat,
+        title={G3Splat: Geometrically Consistent Generalizable Gaussian Splatting}, 
+        author={Mehdi Hosseinzadeh and Shin-Fang Chng and Yi Xu and Simon Lucey and Ian Reid and Ravi Garg},
+        booktitle = {arXiv:2512.17547},
+        year={2025},
+        url={https://arxiv.org/abs/2512.17547}, 
+        }
+          </pre>
           </div>
         </div>
       </div>

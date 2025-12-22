@@ -17,8 +17,7 @@
     });
   }
 
-  const tabs = Array.from(document.querySelectorAll('[data-tab]'));
-  const panels = Array.from(document.querySelectorAll('[data-panel]'));
+  const getTabsets = () => Array.from(document.querySelectorAll('[data-tabset]'));
 
   const resetVideo = (video) => {
     if (!video) return;
@@ -30,35 +29,41 @@
     }
   };
 
-  const setActive = (key, pushHash) => {
-    const activeTab = tabs.find((t) => t.dataset.tab === key) || tabs[0];
-    const activeKey = activeTab?.dataset.tab;
+  const initTabset = (tabsetEl) => {
+    const tabsetKey = tabsetEl.dataset.tabset;
+    if (!tabsetKey) return;
 
-    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === activeKey)));
-    panels.forEach((p) => p.classList.toggle('active', p.dataset.panel === activeKey));
+    const tabs = Array.from(tabsetEl.querySelectorAll('[data-tab]'));
+    const panels = Array.from(document.querySelectorAll(`[data-panel][data-tabset="${tabsetKey}"]`));
+    if (!tabs.length || !panels.length) return;
 
-    // Ensure hidden panels don't keep playing videos and all previews reset to the start.
-    panels
-      .filter((p) => p.dataset.panel !== activeKey)
-      .forEach((p) => p.querySelectorAll('video').forEach(resetVideo));
+    const setActive = (key) => {
+      const activeTab = tabs.find((t) => t.dataset.tab === key) || tabs[0];
+      const activeKey = activeTab?.dataset.tab;
 
-    // Intentionally do not update window.location.hash here.
-    // We want hashes to stay available for section navigation (e.g., #results).
-    void pushHash;
-  };
+      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === activeKey)));
+      panels.forEach((p) => p.classList.toggle('active', p.dataset.panel === activeKey));
 
-  if (tabs.length && panels.length) {
+      // Ensure hidden panels don't keep playing videos and all previews reset to the start.
+      panels
+        .filter((p) => p.dataset.panel !== activeKey)
+        .forEach((p) => p.querySelectorAll('video').forEach(resetVideo));
+    };
+
     tabs.forEach((t) => {
-      t.addEventListener('click', () => setActive(t.dataset.tab, false));
+      t.addEventListener('click', () => setActive(t.dataset.tab));
     });
 
     const fromHash = window.location.hash?.replace('#', '');
     if (fromHash && tabs.some((t) => t.dataset.tab === fromHash)) {
-      setActive(fromHash, false);
+      setActive(fromHash);
     } else {
-      setActive(tabs[0].dataset.tab, false);
+      setActive(tabs[0].dataset.tab);
     }
-  }
+  };
+
+  const tabsets = getTabsets();
+  tabsets.forEach(initTabset);
 
   // Improve table UX: ensure any raw <table> under dataset panels gets wrapped
   // in a horizontally scrollable container.
