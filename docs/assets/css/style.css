@@ -674,6 +674,17 @@ h1 sup,
   background: var(--surface);
   border-radius: 999px;
 }
+
+/* Subtabs use the same visual treatment as tabs. */
+.subtabs{
+  display:flex;
+  gap: 8px;
+  flex-wrap:wrap;
+  padding: 10px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  border-radius: 999px;
+}
 .tab{
   border: 1px solid transparent;
   background: transparent;
@@ -847,4 +858,164 @@ details.details[open] > summary::after{
     backdrop-filter: blur(12px);
   }
   .nav.open{ display:flex; flex-wrap:wrap; }
+}
+
+
+.chart-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:14px;
+  margin-top:12px;
+}
+
+/* 3-up layout (e.g., per-metric mesh charts). */
+.chart-grid.chart-grid-3{
+  grid-template-columns: repeat(3, minmax(0,1fr));
+}
+.chart-card{
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:14px;
+  padding:12px;
+  background: rgba(255,255,255,0.02);
+}
+.chart-title{ font-weight:600; margin-bottom:8px; opacity:0.9; }
+
+/* Make embedded charts reliably fit their cards. */
+.chart-card img{
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Compact charts (e.g., the ScanNet depth scatter plots) to keep 2 columns. */
+.chart-card img.chart-img-compact{
+  height: 240px;
+  object-fit: contain;
+}
+
+.media-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap:12px;
+  margin-top:10px;
+}
+.video-vert{
+  width:100%;
+  aspect-ratio: 9 / 16;
+  border-radius:14px;
+  background:#000;
+}
+
+.sketchfab-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:12px;
+  margin-top:10px;
+}
+.sketchfab{
+  width:100%;
+  aspect-ratio: 16 / 10;
+  border-radius:14px;
+}
+
+/* Mesh grid (Inputs | GT | Without | With), with two method rows per scene. */
+.mesh-grid{
+  display:grid;
+  gap:12px;
+  margin-top:10px;
+}
+
+.mesh-grid-head{
+  display:grid;
+  grid-template-columns: minmax(180px, 0.55fr) 1fr 1fr 1fr;
+  gap:12px;
+  padding: 0 2px;
+}
+
+.mesh-grid-colhead{
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mesh-grid{
+  grid-template-columns: minmax(180px, 0.55fr) 1fr 1fr 1fr;
+  align-items: start;
+}
+
+.mesh-span-2{ grid-row: span 2; }
+
+.mesh-divider{
+  grid-column: 1 / -1;
+  border-top: 1px dashed color-mix(in oklab, var(--text) 65%, transparent 35%);
+  margin: 6px 0;
+}
+
+.mesh-input{
+  border: 1px solid var(--stroke);
+  background: var(--card-bg2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.mesh-scene{
+  font-weight: 780;
+  font-size: 13px;
+}
+
+.mesh-input-media{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.mesh-input-media img{
+  display:block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+}
+
+.mesh-cell{
+  border: 1px solid var(--stroke);
+  background: var(--card-bg2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.mesh-cell-title{
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.mesh-embed{
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  overflow:hidden;
+  background: var(--table-bg);
+}
+
+.mesh-embed iframe{
+  width: 100%;
+  height: 320px;
+  border: 0;
+}
+
+@media (max-width: 900px){
+  .chart-grid{ grid-template-columns: 1fr; }
+  .chart-grid.chart-grid-3{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .media-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .sketchfab-grid{ grid-template-columns: 1fr; }
+
+  .mesh-grid-head{ display:none; }
+  .mesh-grid{ grid-template-columns: 1fr; }
+  .mesh-span-2{ grid-row: auto; }
+  .mesh-embed iframe{ height: 360px; }
+}
+
+@media (max-width: 620px){
+  .chart-grid.chart-grid-3{ grid-template-columns: 1fr; }
 }

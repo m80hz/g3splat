@@ -17,7 +17,11 @@
     });
   }
 
-  const getTabsets = () => Array.from(document.querySelectorAll('[data-tabset]'));
+  // Only initialize actual tablists.
+  // Panels also carry `data-tabset` (to associate them to a tabset key), so
+  // selecting all `[data-tabset]` would incorrectly bind nested tabs and cause
+  // panels to disappear (e.g., Geometry → Depth/Mesh).
+  const getTabsets = () => Array.from(document.querySelectorAll('[role="tablist"][data-tabset]'));
 
   const resetVideo = (video) => {
     if (!video) return;
@@ -29,6 +33,23 @@
     }
   };
 
+  const playAutoplayVideos = (rootEl) => {
+    if (!rootEl) return;
+    const videos = Array.from(rootEl.querySelectorAll('video[autoplay]'));
+    videos.forEach((video) => {
+      try {
+        // Ensure we satisfy common autoplay requirements.
+        // (User gesture from the tab click + muted is usually enough.)
+        video.muted = true;
+        video.playsInline = true;
+        const p = video.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch {
+        // ignore
+      }
+    });
+  };
+
   const initTabset = (tabsetEl) => {
     const tabsetKey = tabsetEl.dataset.tabset;
     if (!tabsetKey) return;
@@ -38,16 +59,26 @@
     if (!tabs.length || !panels.length) return;
 
     const setActive = (key) => {
-      const activeTab = tabs.find((t) => t.dataset.tab === key) || tabs[0];
+      const activeTab = tabs.find((t) => t.dataset.tab === key) || tabs.find((t) => t.getAttribute('aria-selected') === 'true') || tabs[0];
       const activeKey = activeTab?.dataset.tab;
 
-      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === activeKey)));
+      tabs.forEach((t) => {
+        const isActive = t.dataset.tab === activeKey;
+        t.setAttribute('aria-selected', String(isActive));
+        // Improve keyboard navigation: only the active tab is focusable.
+        t.tabIndex = isActive ? 0 : -1;
+      });
       panels.forEach((p) => p.classList.toggle('active', p.dataset.panel === activeKey));
 
       // Ensure hidden panels don't keep playing videos and all previews reset to the start.
       panels
         .filter((p) => p.dataset.panel !== activeKey)
         .forEach((p) => p.querySelectorAll('video').forEach(resetVideo));
+
+      // If the newly-active panel contains videos, start them.
+      // Autoplay does not reliably trigger when videos become visible later.
+      const activePanel = panels.find((p) => p.dataset.panel === activeKey);
+      playAutoplayVideos(activePanel);
     };
 
     tabs.forEach((t) => {
@@ -58,7 +89,8 @@
     if (fromHash && tabs.some((t) => t.dataset.tab === fromHash)) {
       setActive(fromHash);
     } else {
-      setActive(tabs[0].dataset.tab);
+      const initiallySelected = tabs.find((t) => t.getAttribute('aria-selected') === 'true') || tabs[0];
+      setActive(initiallySelected.dataset.tab);
     }
   };
 
