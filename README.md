@@ -25,7 +25,7 @@
     </a>
     &nbsp;
     <!-- arXiv badge -->
-    <a href="https://arxiv.org/abs/0000.00000" target="_blank">
+    <a href="https://arxiv.org/abs/2512.17547" target="_blank">
       <img
         src="https://img.shields.io/badge/Paper-B31B1B?style=flat&logo=arxiv&logoColor=white"
         alt="arXiv" 
@@ -148,7 +148,11 @@ This project builds upon several fantastic repositories—including [NoPoSplat](
 ## Citation
 
 ```
-@article{xxxx,
-    XXXX
-    }
+@inproceedings{g3splat,
+  title={G3Splat: Geometrically Consistent Generalizable Gaussian Splatting}, 
+  author={Mehdi Hosseinzadeh and Shin-Fang Chng and Yi Xu and Simon Lucey and Ian Reid and Ravi Garg},
+  booktitle = {arXiv:2512.17547},
+  year={2025},
+  url={https://arxiv.org/abs/2512.17547}, 
+  }
 ```
