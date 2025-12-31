@@ -8,9 +8,9 @@ set -euo pipefail
 CHECKPOINT=""
 GPU=0
 OUT_DIR="results"
-DEPTH_EXP="scannet_depth_grid_normal"  # default depth and nvs experiments for ScanNet
-POSE_EXP="scannet_pose_grid_normal"    # default pose experiment for ScanNet
-NVS_EXP="$DEPTH_EXP"                   # default NVS experiment for ScanNet (default experiment: depth (same virtual views as depth evaluation))
+DEPTH_EXP="scannet_depth_align_orient"  # default depth and nvs experiments for ScanNet
+POSE_EXP="scannet_pose_align_orient"    # default pose experiment for ScanNet
+NVS_EXP="$DEPTH_EXP"                    # default NVS experiment for ScanNet (default experiment: depth (same virtual views as depth evaluation))
 RUN_POSE=true
 RUN_DEPTH=true
 RUN_NVS=true

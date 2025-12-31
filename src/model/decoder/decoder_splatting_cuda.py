@@ -56,6 +56,8 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         b, v, _, _ = extrinsics.shape
         decoder_type = decoder_type.upper()
         if decoder_type == "2D":
+            # 2D splatting expects only 2 scale values; take the first 2 if 3 are provided
+            scales_2d = gaussians.scales[..., :2] if gaussians.scales.shape[-1] == 3 else gaussians.scales
             color, alpha, rend_normal, dist, depth, surf_normal = render_cuda(
                 rearrange(extrinsics, "b v i j -> (b v) i j"),
                 rearrange(intrinsics, "b v i j -> (b v) i j"),
@@ -64,7 +66,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
                 image_shape,
                 repeat(self.background_color, "c -> (b v) c", b=b, v=v),
                 repeat(gaussians.means, "b g xyz -> (b v) g xyz", v=v),
-                repeat(gaussians.scales, "b g ss -> (b v) g ss", v=v),
+                repeat(scales_2d, "b g ss -> (b v) g ss", v=v),
                 repeat(gaussians.rotations, "b g wxyz -> (b v) g wxyz", v=v),
                 repeat(gaussians.harmonics, "b g c d_sh -> (b v) g c d_sh", v=v),
                 repeat(gaussians.opacities, "b g -> (b v) g", v=v),

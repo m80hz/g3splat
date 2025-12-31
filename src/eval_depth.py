@@ -1,6 +1,5 @@
 import json
 from dataclasses import dataclass
-from pathlib import Path
 
 import hydra
 import torch
@@ -10,7 +9,6 @@ from lightning import Trainer
 
 from src.evaluation.depth_evaluator import DepthEvaluator
 from src.loss import get_losses, LossCfgWrapper
-from src.misc.wandb_tools import update_checkpoint_path
 from src.model.decoder import get_decoder
 from src.model.encoder import get_encoder
 

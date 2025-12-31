@@ -40,16 +40,6 @@ class DatasetRE10kCfgWrapper:
     re10k: DatasetRE10kCfg
 
 
-@dataclass
-class DatasetDL3DVCfgWrapper:
-    dl3dv: DatasetRE10kCfg
-
-
-@dataclass
-class DatasetScannetppCfgWrapper:
-    scannetpp: DatasetRE10kCfg
-
-
 class DatasetRE10k(IterableDataset):
     cfg: DatasetRE10kCfg
     stage: Stage
@@ -146,7 +136,7 @@ class DatasetRE10k(IterableDataset):
                 except IndexError:
                     continue
                 except OSError:
-                    print(f"Skipped bad example {example['key']}.")  # DL3DV-Full have some bad images
+                    print(f"Skipped bad example {example['key']}.")
                     continue
 
                 # Load the depths if available in the serialized example.

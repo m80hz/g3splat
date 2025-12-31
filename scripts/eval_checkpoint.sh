@@ -21,7 +21,7 @@ Options:
   --index PATH                  Evaluation index file (adds dataset view_sampler overrides)
   --view-ns NAME                Dataset view namespace (default: dataset.re10k)
   --wandb-name NAME             WandB run name (NVS only, optional)
-  --nvs-save-with BOOL          test.save_image in NVS with-refinement run (default: true)
+  --nvs-save-with BOOL          test.save_image in NVS with-refinement run (default: false)
   --nvs-save-without BOOL       test.save_image in NVS without-refinement run (default: false)
   --dry-run                     Print commands without executing
   --fail-fast                   Exit immediately on first failure (default: continue and report at end)
@@ -33,17 +33,17 @@ Options:
 
 Examples:
   - Pose+Depth (default):
-    $0 -c ./pretrained_weights/model.ckpt -e scannet_pose_grid
+    $0 -c ./pretrained_weights/model.ckpt -e scannet_pose_align_orient
 
   - Depth only, GPU 1, results dir:
-    $0 --checkpoint ./pretrained_weights/m.ckpt --experiment scannet_depth_grid_normal --only depth --gpu 1 --out results
+    $0 --checkpoint ./pretrained_weights/m.ckpt --experiment scannet_depth_align_orient --only depth --gpu 1 --out results
 
   - NVS on RE10K with evaluation index and WandB name:
-    $0 -c ./pretrained_weights/model.ckpt -e re10k_grid_1x8 --only nvs \
-       --index assets/evaluation_index_re10k.json --wandb-name test_re10k_grid
+    $0 -c ./pretrained_weights/model.ckpt -e re10k_align_orient_1x8 --only nvs \
+       --index assets/evaluation_index_re10k.json --wandb-name test_re10k_align_orient
 
   - Pose on ACID with index overrides:
-    $0 -c ./pretrained_weights/model.ckpt -e acid_grid_normal --only pose \
+    $0 -c ./pretrained_weights/model.ckpt -e acid_align_orient --only pose \
        --index assets/evaluation_index_acid.json
 
 Notes:
@@ -257,14 +257,14 @@ for E in "${EVALS[@]}"; do
       [[ -n "$NVS_EXTRA" ]] && EXTRA_ARGS+=("$NVS_EXTRA")
       [[ ${#EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${EXTRA_LIST[@]}")
       [[ ${#NVS_EXTRA_LIST[@]} -gt 0 ]] && EXTRA_ARGS+=("${NVS_EXTRA_LIST[@]}")
-      # with refinement (align on by default)
+      # with refinement (align_pose must be explicitly enabled)
       if [[ "$RUN_WITH_REFINEMENT" == true ]]; then
         OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-with_pose_refinement-${SAFE_NAME}.txt"
-        echo "-> $MODULE ${BASE_ARGS[*]} test.save_image=$NVS_SAVE_WITH -> $OUT_FILE"
-        run_cmd "$MODULE ${BASE_ARGS[*]} test.save_image=$NVS_SAVE_WITH" "$OUT_FILE" \
-          python -m $MODULE "${BASE_ARGS[@]}" "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}"
+        echo "-> $MODULE ${BASE_ARGS[*]} test.align_pose=true test.save_image=$NVS_SAVE_WITH -> $OUT_FILE"
+        run_cmd "$MODULE ${BASE_ARGS[*]} test.align_pose=true test.save_image=$NVS_SAVE_WITH" "$OUT_FILE" \
+          python -m $MODULE "${BASE_ARGS[@]}" test.align_pose=true "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}"
       fi
-      # without refinement (align disabled)
+      # without refinement (align_pose=false is default)
       OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-without_pose_refinement-${SAFE_NAME}.txt"
       echo "-> $MODULE ${BASE_ARGS[*]} test.align_pose=false test.save_image=$NVS_SAVE_WITHOUT -> $OUT_FILE"
       run_cmd "$MODULE ${BASE_ARGS[*]} test.align_pose=false test.save_image=$NVS_SAVE_WITHOUT" "$OUT_FILE" \

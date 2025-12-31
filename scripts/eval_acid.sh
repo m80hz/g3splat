@@ -6,7 +6,7 @@ set -euo pipefail
 #   scripts/eval_acid.sh -c <ckpt> -e <experiment> [-g 0] [-o results]
 
 CHECKPOINT=""
-EXPERIMENT="acid_grid_normal_1x8"   # NVS or Pose experiment for ACID
+EXPERIMENT="acid_align_orient_1x8"   # NVS or Pose experiment for ACID
 GPU=0
 OUT_DIR="results"
 WANDB_NAME=""

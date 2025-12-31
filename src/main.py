@@ -29,13 +29,11 @@ from pathlib import Path
 import hydra
 import torch
 import wandb
-import signal
 from colorama import Fore
 from jaxtyping import install_import_hook
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers.wandb import WandbLogger
-from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, OmegaConf
 
 from src.misc.weight_modify import checkpoint_filter_fn
@@ -61,31 +59,9 @@ with install_import_hook(
 def cyan(text: str) -> str:
     return f"{Fore.CYAN}{text}{Fore.RESET}"
 
+
 # Determine global rank (default to 0 if not set)
 global_rank = int(os.environ.get("LOCAL_RANK", 0))
-
-# class PrintGpuUsageCallback(Callback):
-#     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-#         # Print only once from the main (rank=0) process in DDP
-#         # if trainer.global_rank == 0:
-#         print("\n--- GPU Memory Usage ---")
-#         for i in range(torch.cuda.device_count()):
-#             # GPU properties
-#             props = torch.cuda.get_device_properties(i)
-#             gpu_name = props.name
-#             total_vram = props.total_memory / (1024**3)  # bytes -> GB
-            
-#             # Current usage
-#             allocated = torch.cuda.memory_allocated(i) / (1024**3)  # GB
-#             reserved  = torch.cuda.memory_reserved(i) / (1024**3)   # GB
-
-#             print(
-#                 f"GPU {i}: {gpu_name}\n"
-#                 f"  - Total VRAM: {total_vram:.2f} GB\n"
-#                 f"  - Allocated : {allocated:.2f} GB\n"
-#                 f"  - Reserved  : {reserved:.2f} GB\n"
-#             )
-#         print("------------------------\n")
 
 
 @hydra.main(
@@ -153,20 +129,13 @@ def train(cfg_dict: DictConfig):
         accelerator="gpu",
         logger=logger,
         devices="auto",
-        # devices=1,
         strategy="ddp_find_unused_parameters_true",
-        # strategy=(
-        #     "ddp_find_unused_parameters_true"
-        #     if torch.cuda.device_count() > 1
-        #     else "auto"
-        # ),
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         check_val_every_n_epoch=None,
         enable_progress_bar=False,
         gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=cfg.trainer.max_steps,
-        # plugins=[SLURMEnvironment(requeue_signal=signal.SIGUSR1)],  # Uncomment for SLURM auto resubmission.
         inference_mode=False if (cfg.mode == "test" and cfg.test.align_pose) else True,
     )
     torch.manual_seed(cfg_dict.seed + trainer.global_rank)

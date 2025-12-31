@@ -44,7 +44,5 @@ trainer:
   num_nodes: 6
 
 checkpointing:
-  # every_n_train_steps: 9375
   every_n_train_steps: 4687
-  save_top_k: 5
-
+  save_top_k: 1

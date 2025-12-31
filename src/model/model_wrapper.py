@@ -563,7 +563,7 @@ class ModelWrapper(LightningModule):
                         (h, w),
                         cam_rot_delta=cam_rot_delta,
                         cam_trans_delta=cam_trans_delta,
-                        decoder_type=self._decoder_type(),
+                        decoder_type="3D",  # Always use 3D for pose refinement (only 3D renderer returns camera pose gradients)
                     )
 
                     # Compute and log loss.

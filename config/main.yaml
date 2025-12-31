@@ -4,18 +4,15 @@ defaults:
   - loss: [mse]
 
 wandb:
-  project: gen2dgs
+  project: g3splat
   entity: gen-splat
   name: placeholder
   mode: disabled
 
 mode: train
 
-#dataset:
-#  overfit_to_scene: null
 
 data_loader:
-  # Avoid having to spin up new processes to print out visualizations.
   train:
     num_workers: 16
     persistent_workers: true
@@ -52,7 +49,7 @@ train:
 
 test:
   output_path: outputs/test
-  align_pose: true
+  align_pose: false
   pose_align_steps: 100
   rot_opt_lr:  0.005
   trans_opt_lr:  0.005

@@ -2,12 +2,10 @@ from typing import Optional
 
 from .encoder import Encoder
 from .encoder_noposplat import EncoderNoPoSplatCfg, EncoderNoPoSplat
-from .encoder_noposplat_multi import EncoderNoPoSplatMulti
 from .visualization.encoder_visualizer import EncoderVisualizer
 
 ENCODERS = {
     "noposplat": (EncoderNoPoSplat, None),
-    "noposplat_multi": (EncoderNoPoSplatMulti, None),
 }
 
 EncoderCfg = EncoderNoPoSplatCfg

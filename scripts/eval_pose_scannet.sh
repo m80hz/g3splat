@@ -1,6 +1,0 @@
-# Cross-Domain Zero-shot Pose Evaluation on ScanNetV1
-CUDA_VISIBLE_DEVICES=0 python -m src.eval_pose \
-                        +experiment=scannet_pose_grid \
-                        +evaluation=eval_pose \
-                        checkpointing.load=./pretrained_weights/ours_re10k_grid_hpc_2025-03-01_22-56-21_step_18748.ckpt
-                        

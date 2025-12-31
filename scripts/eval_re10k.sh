@@ -6,7 +6,7 @@ set -euo pipefail
 #   scripts/eval_re10k.sh -c <ckpt> -e <experiment> [-g 0] [-o results]
 
 CHECKPOINT=""
-EXPERIMENT="re10k_grid_normal_1x8"   # default example; override with -e
+EXPERIMENT="re10k_align_orient_1x8"   # default example; override with -e
 GPU=0
 OUT_DIR="results"
 WANDB_NAME=""

@@ -34,7 +34,7 @@ class OpacityMappingCfg:
 
 @dataclass
 class EncoderNoPoSplatCfg:
-    name: Literal["noposplat", "noposplat_multi"]
+    name: Literal["noposplat"]
     d_feature: int
     num_monocular_samples: int
     backbone: BackboneCfg

@@ -49,7 +49,7 @@ default_dust3r_params = {
 
 @dataclass
 class BackboneCrocoCfg:
-    name: Literal["croco", "croco_multi"]
+    name: Literal["croco"]
     model: Literal["ViTLarge_BaseDecoder", "ViTBase_SmallDecoder", "ViTBase_BaseDecoder"]  # keep interface for the last two models, but they are not supported
     patch_embed_cls: str = 'PatchEmbedDust3R'  # PatchEmbedDust3R or ManyAR_PatchEmbed
     asymmetry_decoder: bool = True

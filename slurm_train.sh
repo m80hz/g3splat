@@ -19,7 +19,7 @@ module load GCC/11.2.0
 module use /apps/icl/modules/all
 
 source ~/.bashrc
-conda activate /hpcfs/users/$USER/projects/Gen2DGS/.conda
+conda activate /hpcfs/users/$USER/projects/g3splat/.conda
 
 # --- redirect temp & cache dirs to a directory with sufficient space ---
 export SCRATCH_BASE="${SLURM_TMPDIR:-/scratchdata1/users/$USER}"
@@ -39,4 +39,4 @@ echo "[temps] CUDA_CACHE_PATH=$CUDA_CACHE_PATH"
 
 echo "PYTHON=$(which python)"
 
-srun --export=ALL python -m src.main +experiment=re10k_grid_normal wandb.mode=offline
+srun --export=ALL python -m src.main +experiment=re10k_align_orient wandb.mode=offline

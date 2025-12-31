@@ -6,23 +6,20 @@ from .dataset_scannet_pose import DatasetScannetPose, DatasetScannetPoseCfgWrapp
 from .dataset_scannet_depth import DatasetScannetDepth, DatasetScannetDepthCfgWrapper
 from .dataset_nyud_depth import DatasetNYUDepth, DatasetNYUDepthCfgWrapper
 from ..misc.step_tracker import StepTracker
-from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg, DatasetRE10kCfgWrapper, DatasetDL3DVCfgWrapper, \
-    DatasetScannetppCfgWrapper
+from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg, DatasetRE10kCfgWrapper
 from .types import Stage
 from .view_sampler import get_view_sampler
 
 DATASETS: dict[str, Dataset] = {
     "re10k": DatasetRE10k,
-    "dl3dv": DatasetRE10k,
     "dtu": DatasetRE10k,
-    "scannetpp": DatasetRE10k,
     "scannet_pose": DatasetScannetPose,
     "scannet_depth": DatasetScannetDepth,
     "nyud_depth": DatasetNYUDepth,
 }
 
 
-DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetDL3DVCfgWrapper | DatasetScannetppCfgWrapper | DatasetScannetPoseCfgWrapper | DatasetScannetDepthCfgWrapper | DatasetNYUDepthCfgWrapper
+DatasetCfgWrapper = DatasetRE10kCfgWrapper | DatasetScannetPoseCfgWrapper | DatasetScannetDepthCfgWrapper | DatasetNYUDepthCfgWrapper
 DatasetCfg = DatasetRE10kCfg
 
 

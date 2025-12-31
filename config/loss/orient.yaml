@@ -1,0 +1,17 @@
+orient:
+
+  lambda_context_views_orient: 0.05
+  lambda_context_scale_flatten: 1000.0
+  lambda_context_orient_smoothness: 0.0
+
+  on_novel_views: false
+  lambda_novel_views_orient: 0.05
+  lambda_novel_views_distortion: 0.0
+  apply_orient_after_step: 0
+  apply_distortion_after_step: 0
+
+  valid_threshold: 0.1
+  depth_valid_threshold: 1e-3
+  depth_disc_multiplier: 3.0         # increase for stronger edge detection
+  depth_disc_slope: 0.2              # decrease for narrower sigmoid
+  huber_delta: 0.1                   # decrease for sharper angular error

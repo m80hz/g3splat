@@ -21,7 +21,7 @@ Options:
   --index PATH                  Evaluation index file (adds dataset view_sampler overrides)
   --view-ns NAME                Dataset view namespace (default: dataset.re10k)
   --wandb-name NAME             WandB run name (NVS only, optional)
-  --nvs-save-with BOOL          test.save_image in NVS with-refinement run (default: true)
+  --nvs-save-with BOOL          test.save_image in NVS with-refinement run (default: false)
   --nvs-save-without BOOL       test.save_image in NVS without-refinement run (default: false)
   --extra "ARGS"                Extra Hydra overrides to append to ALL runs
   --pose-extra "ARGS"           Extra Hydra overrides to append to pose runs
@@ -31,17 +31,17 @@ Options:
 
 Examples:
   - Pose+Depth (default):
-    $0 -c ./pretrained_weights/model.ckpt -e scannet_pose_grid
+    $0 -c ./pretrained_weights/model.ckpt -e scannet_pose_align_orient
 
   - Depth only, GPU 1, results dir:
-    $0 --checkpoint ./pretrained_weights/m.ckpt --experiment scannet_depth_grid_normal --only depth --gpu 1 --out results
+    $0 --checkpoint ./pretrained_weights/m.ckpt --experiment scannet_depth_align_orient --only depth --gpu 1 --out results
 
   - NVS on RE10K with evaluation index and WandB name:
-    $0 -c ./pretrained_weights/model.ckpt -e re10k_grid_1x8 --only nvs \
-       --index assets/evaluation_index_re10k.json --wandb-name test_re10k_grid
+    $0 -c ./pretrained_weights/model.ckpt -e re10k_align_orient_1x8 --only nvs \
+       --index assets/evaluation_index_re10k.json --wandb-name test_re10k_align_orient
 
   - Pose on ACID with index overrides:
-    $0 -c ./pretrained_weights/model.ckpt -e acid_grid_normal --only pose \
+    $0 -c ./pretrained_weights/model.ckpt -e acid_align_orient --only pose \
        --index assets/evaluation_index_acid.json
 
 Notes:
@@ -58,7 +58,7 @@ RUN_WITH_REFINEMENT=true
 INDEX=""
 VIEW_NS="dataset.re10k"
 WANDB_NAME=""
-NVS_SAVE_WITH=true
+NVS_SAVE_WITH=false
 NVS_SAVE_WITHOUT=false
 EXTRA=""
 POSE_EXTRA=""
@@ -202,13 +202,13 @@ for E in "${EVALS[@]}"; do
       if [[ -n "$WANDB_NAME" ]]; then BASE_ARGS+=("wandb.name=$WANDB_NAME"); fi
       EXTRA_ARGS=()
       append_extras EXTRA_ARGS "$EXTRA" "$NVS_EXTRA"
-      # with refinement (align on by default)
+      # with refinement (must explicitly enable test.align_pose since default is false)
       if [[ "$RUN_WITH_REFINEMENT" == true ]]; then
         OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-with_pose_refinement-${SAFE_NAME}.txt"
-        echo "-> $MODULE ${BASE_ARGS[*]} test.save_image=$NVS_SAVE_WITH -> $OUT_FILE"
-        CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
+        echo "-> $MODULE ${BASE_ARGS[*]} test.align_pose=true test.save_image=$NVS_SAVE_WITH -> $OUT_FILE"
+        CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" test.align_pose=true "test.save_image=$NVS_SAVE_WITH" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
       fi
-      # without refinement (align disabled)
+      # without refinement (align disabled, which is now the default)
       OUT_FILE="$OUT_DIR/${PREFIX}_${EXPERIMENT}-without_pose_refinement-${SAFE_NAME}.txt"
       echo "-> $MODULE ${BASE_ARGS[*]} test.align_pose=false test.save_image=$NVS_SAVE_WITHOUT -> $OUT_FILE"
       CUDA_VISIBLE_DEVICES=$GPU python -m $MODULE "${BASE_ARGS[@]}" test.align_pose=false "test.save_image=$NVS_SAVE_WITHOUT" "${EXTRA_ARGS[@]}" > "$OUT_FILE" 2>&1
@@ -219,72 +219,3 @@ done
 
 echo "All requested evaluations executed. Results are in: $OUT_DIR"
 
-# ---------------------------
-# Examples (commented from previous manual runs)
-# ---------------------------
-# NVS on RE10K with/without pose refinement:
-# CUDA_VISIBLE_DEVICES=1 python -m src.main \
-#   +experiment=re10k_grid_1x8 \
-#   mode=test \
-#   wandb.name=test_re10k_grid \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
-#   test.save_image=true \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_hpc_2025-03-01_22-56-21_step_18748.ckpt
-# CUDA_VISIBLE_DEVICES=1 python -m src.main \
-#   +experiment=re10k_grid_1x8 \
-#   mode=test \
-#   test.align_pose=false \
-#   wandb.name=test_re10k_grid \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
-#   test.save_image=false \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_hpc_2025-03-01_22-56-21_step_18748.ckpt
-#
-# NVS on ACID:
-# CUDA_VISIBLE_DEVICES=0 python -m src.main \
-#   +experiment=acid_1x8 \
-#   mode=test \
-#   wandb.name=test_acid_grid_normal_v2 \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_acid.json \
-#   test.save_image=false \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt
-# CUDA_VISIBLE_DEVICES=0 python -m src.main \
-#   +experiment=acid_1x8 \
-#   mode=test \
-#   test.align_pose=false \
-#   wandb.name=test_acid_grid_normal_v2 \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_acid.json \
-#   test.save_image=false \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt
-#
-# NVS on ScanNetV1:
-# CUDA_VISIBLE_DEVICES=0 python -m src.main \
-#   +experiment=scannet_depth \
-#   mode=test \
-#   wandb.name=test_scannet_grid_normal_v2 \
-#   test.save_image=true \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt
-# CUDA_VISIBLE_DEVICES=0 python -m src.main \
-#   +experiment=scannet_depth \
-#   mode=test \
-#   test.align_pose=false \
-#   wandb.name=test_scannet_grid_normal_v2 \
-#   test.save_image=false \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt
-#
-# Pose on RE10K / ACID with index overrides:
-# CUDA_VISIBLE_DEVICES=0 python -m src.eval_pose \
-#   +experiment=re10k_grid_normal \
-#   +evaluation=eval_pose \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt
-# CUDA_VISIBLE_DEVICES=1 python -m src.eval_pose \
-#   +experiment=acid_grid_normal \
-#   +evaluation=eval_pose \
-#   dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
-#   dataset.re10k.view_sampler.index_path=assets/evaluation_index_acid.json \
-#   checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v2_gaussians-detached-grid_hpc_2025-03-15_20-47-46_step_18748.ckpt

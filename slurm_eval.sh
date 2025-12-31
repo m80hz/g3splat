@@ -19,7 +19,7 @@ module load GCC/11.2.0
 module use /apps/icl/modules/all
 
 source ~/.bashrc
-conda activate /hpcfs/users/$USER/projects/Gen2DGS/.conda
+conda activate /hpcfs/users/$USER/projects/g3splat/.conda
 
 # --- redirect temp & cache dirs to a directory with sufficient space ---
 export SCRATCH_BASE="${SLURM_TMPDIR:-/scratchdata1/users/$USER}"
@@ -40,11 +40,10 @@ echo "[temps] CUDA_CACHE_PATH=$CUDA_CACHE_PATH"
 echo "PYTHON=$(which python)"
 
 srun --export=ALL python -m src.main \
-                            +experiment=re10k_grid_normal \
+                            +experiment=re10k_align_orient \
                             mode=test \
-                            wandb.name=test_re10k_grid_normal \
+                            wandb.name=test_re10k_align_orient \
                             dataset/view_sampler@dataset.re10k.view_sampler=evaluation \
                             dataset.re10k.view_sampler.index_path=assets/evaluation_index_re10k.json \
-                            test.save_image=false \
-                            checkpointing.load=./pretrained_weights/ours_re10k_grid_normal_v5_edge_aware_hpc_2025-08-13_21-02-57_18750.ckpt \
-                            > "nvs_re10k_grid_normal_with-pose-refinement_ours_re10k_grid_normal_v5_edge-averse_hpc_2025-08-13_21-02-57_step_18750.txt" 2>&1
+                            checkpointing.load=./pretrained_weights/g3splat_mast3r_3dgs_align_orient_re10k.ckpt \
+                            > "nvs_re10k_align_orient_without-pose-refinement_g3splat_mast3r_3dgs_align_orient_re10k.ckpt.txt" 2>&1

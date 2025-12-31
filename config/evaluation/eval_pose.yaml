@@ -1,7 +1,4 @@
 methods:
-  # - name: ours
-  #   key: ours
-  #   path: ''
   - name: "PnP-RANSAC"
     key: pnp_ransac
     path: ""

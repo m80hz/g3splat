@@ -116,7 +116,7 @@ class PoseEvaluator(LightningModule):
                         (h, w),
                         cam_rot_delta=cam_rot_delta,
                         cam_trans_delta=cam_trans_delta,
-                        decoder_type="3D"
+                        decoder_type="3D"  # Always use 3D for pose refinement (only 3D renderer returns camera pose gradients)
                     )
                     batch["target"]["image"] = input_images_view2
                     total_loss = 0
