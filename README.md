@@ -556,7 +556,7 @@ python -m src.main +experiment=re10k_align_orient_1x8 \
     wandb.name=g3splat_align_orient_1x8
 ```
 
-**Training Time**: ~48 hours on 1× A6000
+**Training Time**: ~120 hours on 1× A6000
 
 </details>
 
